@@ -18,7 +18,7 @@ namespace feetech_servo_ros2_control {
 
     /// ros2_control SystemInterface for Feetech SCS series bus servos.
     ///
-    /// Supported models: SC215 (model 0x2305) and SC225 (model 0x2309).
+    /// Supported models: SC215 (model 0x0523) and SC225 (model 0x0923).
     /// One instance owns one serial bus; each joint maps to one servo id.
     class FeetechServoHardwareInterface : public hardware_interface::SystemInterface {
     public:

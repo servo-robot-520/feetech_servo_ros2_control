@@ -58,9 +58,12 @@ namespace feetech_servo_ros2_control {
     inline constexpr uint8_t kSpeedSignBit = 15;
     inline constexpr uint8_t kLoadSignBit = 10;
 
-    // Model identifier reported at kRegisterModel.
-    inline constexpr uint16_t kModelSc215 = 0x2305;
-    inline constexpr uint16_t kModelSc225 = 0x2309;
+    // Model identifier reported at kRegisterModel. SCS registers are high byte
+    // first, so SC215 (major 5, minor 35) reads as 0x0523 and SC225
+    // (major 9, minor 35) as 0x0923. The reference debug tool stores the same
+    // values byte-swapped (0x2305/0x2309) because it reads them low byte first.
+    inline constexpr uint16_t kModelSc215 = 0x0523;
+    inline constexpr uint16_t kModelSc225 = 0x0923;
 
     inline std::string_view model_name(const uint16_t model) {
         switch (model) {

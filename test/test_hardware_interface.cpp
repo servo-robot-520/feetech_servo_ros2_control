@@ -230,6 +230,15 @@ namespace feetech_servo_ros2_control {
             EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
         }
 
+        TEST(HardwareInterfaceModel, AcceptsSc225Model) {
+            FakeScsBus bus(std::vector<uint8_t>{1}, kModelSc225);
+            auto info = make_hardware_info(bus.slave_path(), {1});
+            info.hardware_parameters["strict_model_check"] = "true";
+
+            FeetechServoHardwareInterface hardware;
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::SUCCESS);
+        }
+
         TEST(HardwareInterfaceModel, StrictModelCheckRejectsUnknownServo) {
             FakeScsBus bus(std::vector<uint8_t>{1}, 0x1234);
             auto info = make_hardware_info(bus.slave_path(), {1});
