@@ -10,6 +10,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # Core library: POSIX serial transport, SCS protocol codec, YAML joint configuration.
@@ -22,15 +26,33 @@ target_include_directories(
                               $<INSTALL_INTERFACE:include>)
 target_link_libraries(feetech_servo_driver PUBLIC yaml-cpp)
 
+# ros2_control plugin.
+add_library(feetech_servo_ros2_control SHARED src/feetech_servo_hardware_interface.cpp)
+target_include_directories(
+  feetech_servo_ros2_control PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                                    $<INSTALL_INTERFACE:include>)
+target_link_libraries(
+  feetech_servo_ros2_control PUBLIC feetech_servo_driver
+                                   hardware_interface::hardware_interface
+                                   pluginlib::pluginlib rclcpp::rclcpp
+                                   rclcpp_lifecycle::rclcpp_lifecycle)
+
+pluginlib_export_plugin_description_file(
+  hardware_interface feetech_servo_ros2_control_plugin_description.xml)
+
 install(
-  TARGETS feetech_servo_driver
+  TARGETS feetech_servo_driver feetech_servo_ros2_control
   EXPORT feetech_servo_ros2_controlTargets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin)
 install(DIRECTORY include/ DESTINATION include)
+install(
+  FILES feetech_servo_ros2_control_plugin_description.xml
+  DESTINATION share/${PROJECT_NAME})
 
 ament_export_targets(feetech_servo_ros2_controlTargets HAS_LIBRARY_TARGET)
-ament_export_dependencies(yaml-cpp)
+ament_export_dependencies(rclcpp rclcpp_lifecycle hardware_interface pluginlib
+                          yaml-cpp)
 
 ament_package()
