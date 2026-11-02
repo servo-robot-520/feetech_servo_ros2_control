@@ -1,5 +1,7 @@
 # feetech_servo_ros2_control
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 `ros2_control` hardware interface for Feetech **SCS** series bus servos, targeting
 the **SC215** and **SC225** (potentiometer, 10-bit encoder, TTL half-duplex bus).
 
@@ -71,7 +73,6 @@ Only the `position` command interface is supported.
 | `strict_model_check` | `false` | Reject servos whose model is not SC215/SC225. |
 | `scan_servos` | `true` | Ping every id 0..253 on startup and log firmware/servo versions and baud rate. |
 
-The serial device and baud rate may also be provided by the joint config file
 The serial device and baud rate may also be provided by the joint config file
 (top-level `usb_port` / `baud_rate`); the config file takes precedence over the
 URDF parameters.
@@ -213,5 +214,5 @@ return `ERROR`.
   acceleration register, so those STS-oriented parameters are unavailable.
 - The servo must answer WRITE commands (`Response Level` register 8 = 1, the
   factory default).
-- Tested against a protocol-faithful pty simulator; validation on physical
-  SC215/SC225 hardware is still required.
+- Tested against a protocol-faithful pty simulator and a physical SC225;
+  SC215 hardware validation is still required.
