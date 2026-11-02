@@ -48,8 +48,8 @@ sudo usermod -aG dialout "$USER"
     <state_interface name="voltage"/>
     <state_interface name="temperature"/>
     <param name="id">1</param>
-    <param name="range_min">0</param>
-    <param name="range_max">1023</param>
+    <param name="range_min">-90</param>
+    <param name="range_max">90</param>
     <param name="p_coefficient">16</param>
     <param name="d_coefficient">16</param>
   </joint>
@@ -112,8 +112,8 @@ parameters on `on_init`:
 | Parameter | Register | Range | Notes |
 |---|---|---|---|
 | `id` | — | 0..253 | **Required**. Must be unique on the bus. |
-| `range_min` | 9 (2 B) | 0..1023 | Lower command limit, in ticks. |
-| `range_max` | 11 (2 B) | 0..1023 | Upper command limit, in ticks. |
+| `range_min` | 9 (2 B) | −range_deg/2..+range_deg/2 | Lower command/EEPROM limit, degrees relative to center. |
+| `range_max` | 11 (2 B) | −range_deg/2..+range_deg/2 | Upper command/EEPROM limit, degrees relative to center. |
 | `range_deg` | — | 0.1..360 | Mechanical travel used for the tick/radian conversion. |
 | `speed` | — | 1..1000 | Command speed in ticks/s. |
 | `return_delay_time` | 7 | 0..254 | 2 µs units. |
@@ -150,8 +150,8 @@ joints:
     id: 1
     p_coefficient: 16
     d_coefficient: 16
-    range_min: 100
-    range_max: 923
+    range_min: -60
+    range_max: 60
     range_deg: 300
     speed: 800
     max_temperature: 70
@@ -164,8 +164,8 @@ joints:
     overload_torque: 80
   elbow_joint:
     id: 2
-    range_min: 20
-    range_max: 1003
+    range_min: -80
+    range_max: 80
 ```
 
 Entries are matched to URDF joints by **servo id**; the YAML joint name is only
@@ -180,8 +180,11 @@ radians = (ticks - 511) * range_deg * pi / 180 / 1024
 ```
 
 `range_deg` defaults to 300 (SC215). SC225 has 180° and 300° variants, so set
-`range_deg` for that joint to match the actual servo. Commands are rounded to
-ticks and clamped to `range_min..range_max` before being sent.
+`range_deg` for that joint to match the actual servo. `range_min`/`range_max`
+use the same degree convention (0° is the center, tick 511) and are valid within
+±`range_deg`/2. They are converted to ticks for command clamping and for the
+servo EEPROM angle-limit registers. Commands are rounded to ticks and clamped to
+`range_min..range_max` before being sent.
 
 ## State interfaces
 

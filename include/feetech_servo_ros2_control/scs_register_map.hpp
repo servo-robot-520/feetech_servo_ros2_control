@@ -124,6 +124,22 @@ namespace feetech_servo_ros2_control {
         return range_deg * kPi / 180.0 / static_cast<double>(kPositionTicks);
     }
 
+    /// Degrees relative to the servo center (tick 511 = 0 degree).
+    inline double degrees_per_tick(const double range_deg) {
+        return range_deg / static_cast<double>(kPositionTicks);
+    }
+
+    inline double tick_to_degrees(const uint16_t tick, const double range_deg) {
+        return (static_cast<double>(tick) - static_cast<double>(kPositionMidpoint)) *
+            degrees_per_tick(range_deg);
+    }
+
+    inline uint16_t degrees_to_tick(const double degrees, const double range_deg) {
+        const auto tick = static_cast<long>(std::lround(degrees / degrees_per_tick(range_deg))) +
+            static_cast<long>(kPositionMidpoint);
+        return static_cast<uint16_t>(std::clamp<long>(tick, 0, static_cast<long>(kPositionTicks) - 1));
+    }
+
     inline double tick_to_radians(const uint16_t tick, const double range_deg) {
         return (static_cast<double>(tick) - static_cast<double>(kPositionMidpoint)) *
             radians_per_tick(range_deg);

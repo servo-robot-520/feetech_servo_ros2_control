@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,8 @@ namespace feetech_servo_ros2_control {
             double range_deg{300.0};
             uint16_t min_tick{0};
             uint16_t max_tick{1023};
+            std::optional<uint16_t> eeprom_min_tick;
+            std::optional<uint16_t> eeprom_max_tick;
             uint16_t speed{1000};
             bool has_position_command{false};
             bool torque_enabled{false};

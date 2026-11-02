@@ -318,27 +318,31 @@ namespace feetech_servo_ros2_control {
                 }
             }
 
+            const double half_range_deg = joint.range_deg / 2.0;
             if (const auto it = merged.find("range_min"); it != merged.end()) {
-                int value = 0;
-                if (const auto result = parse_integer("Joint '" + joint.name + "' range_min", it->second, 0,
-                                                      1023, &value);
+                double degrees = 0.0;
+                if (const auto result = parse_real("Joint '" + joint.name + "' range_min (deg)", it->second,
+                                                   -half_range_deg, half_range_deg, &degrees);
                     !result) {
                     return fail(result.error());
                 }
-                joint.min_tick = static_cast<uint16_t>(value);
+                joint.min_tick = degrees_to_tick(degrees, joint.range_deg);
+                joint.eeprom_min_tick = joint.min_tick;
             }
             if (const auto it = merged.find("range_max"); it != merged.end()) {
-                int value = 0;
-                if (const auto result = parse_integer("Joint '" + joint.name + "' range_max", it->second, 0,
-                                                      1023, &value);
+                double degrees = 0.0;
+                if (const auto result = parse_real("Joint '" + joint.name + "' range_max (deg)", it->second,
+                                                   -half_range_deg, half_range_deg, &degrees);
                     !result) {
                     return fail(result.error());
                 }
-                joint.max_tick = static_cast<uint16_t>(value);
+                joint.max_tick = degrees_to_tick(degrees, joint.range_deg);
+                joint.eeprom_max_tick = joint.max_tick;
             }
             if (joint.min_tick >= joint.max_tick) {
                 return fail("Joint '" + joint.name + "': range_min (" + std::to_string(joint.min_tick) +
-                            ") must be smaller than range_max (" + std::to_string(joint.max_tick) + ")");
+                            " ticks) must be smaller than range_max (" + std::to_string(joint.max_tick) +
+                            " ticks)");
             }
 
             joint.speed = options_.default_speed;
@@ -477,9 +481,7 @@ namespace feetech_servo_ros2_control {
         }
 
         std::vector<WordSetting> word_settings;
-        const std::array<WordParameter, 3> word_parameters{{
-            {"range_min", kRegisterMinAngleLimit, 0, 1023},
-            {"range_max", kRegisterMaxAngleLimit, 0, 1023},
+        const std::array<WordParameter, 1> word_parameters{{
             {"max_torque", kRegisterMaxTorque, 0, 1000},
         }};
         for (const auto& parameter : word_parameters) {
@@ -494,6 +496,15 @@ namespace feetech_servo_ros2_control {
                 return result;
             }
             word_settings.push_back({parameter.name, parameter.address, static_cast<uint16_t>(value)});
+        }
+
+        // Angle limits are configured in degrees (relative to center) and
+        // stored in the servo as ticks.
+        if (joint.eeprom_min_tick) {
+            word_settings.push_back({"range_min", kRegisterMinAngleLimit, *joint.eeprom_min_tick});
+        }
+        if (joint.eeprom_max_tick) {
+            word_settings.push_back({"range_max", kRegisterMaxAngleLimit, *joint.eeprom_max_tick});
         }
 
         const auto id = joint.id;
