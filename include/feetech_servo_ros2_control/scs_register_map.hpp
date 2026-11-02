@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <string_view>
@@ -10,14 +11,24 @@ namespace feetech_servo_ros2_control {
     // SCSCL memory table (Feetech "SCS series, potentiometer" control table).
     // Addresses are the low address of each field. Multi-byte fields are
     // transmitted high byte first, matching SCServo_Linux's SCSCL (End = 1).
-    inline constexpr uint8_t kRegisterModel = 3; // 2 bytes: model / firmware identification
+    inline constexpr uint8_t kRegisterFirmwareMajor = 0;
+    inline constexpr uint8_t kRegisterFirmwareMinor = 1;
+    inline constexpr uint8_t kRegisterEnd = 2;
+    inline constexpr uint8_t kRegisterServoMajor = 3;
+    inline constexpr uint8_t kRegisterServoMinor = 4;
+    inline constexpr uint8_t kRegisterModel = kRegisterServoMajor; // 2 bytes: servo major/minor
     inline constexpr uint8_t kRegisterId = 5;
     inline constexpr uint8_t kRegisterBaudRate = 6;
     inline constexpr uint8_t kRegisterReturnDelay = 7;
     inline constexpr uint8_t kRegisterResponseLevel = 8;
     inline constexpr uint8_t kRegisterMinAngleLimit = 9; // 2 bytes, ticks
     inline constexpr uint8_t kRegisterMaxAngleLimit = 11; // 2 bytes, ticks
+    inline constexpr uint8_t kRegisterMaxTemperature = 13; // degC
+    inline constexpr uint8_t kRegisterMaxInputVoltage = 14; // 0.1 V
+    inline constexpr uint8_t kRegisterMinInputVoltage = 15; // 0.1 V
     inline constexpr uint8_t kRegisterMaxTorque = 16; // 2 bytes, 0..1000
+    inline constexpr uint8_t kRegisterUnloadingCondition = 19; // bitfield
+    inline constexpr uint8_t kRegisterLedAlarmCondition = 20; // bitfield
     inline constexpr uint8_t kRegisterPCoefficient = 21;
     inline constexpr uint8_t kRegisterDCoefficient = 22;
     inline constexpr uint8_t kRegisterCwDeadZone = 26;
@@ -57,6 +68,14 @@ namespace feetech_servo_ros2_control {
 
     inline constexpr uint8_t kSpeedSignBit = 15;
     inline constexpr uint8_t kLoadSignBit = 10;
+
+    /// Baud rate code stored in kRegisterBaudRate (factory code 0 = 1 Mbaud).
+    inline constexpr std::array<int, 8> kBaudRatesByCode{1000000, 500000, 250000, 128000,
+                                                         115200, 76800, 57600, 38400};
+
+    inline int baud_rate_from_code(const uint8_t code) {
+        return code < kBaudRatesByCode.size() ? kBaudRatesByCode[code] : 0;
+    }
 
     // Model identifier reported at kRegisterModel. SCS registers are high byte
     // first, so SC215 (major 5, minor 35) reads as 0x0523 and SC225

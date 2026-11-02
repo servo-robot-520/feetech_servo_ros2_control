@@ -71,8 +71,16 @@ namespace feetech_servo_ros2_control::test {
                 servo.registers[kRegisterMinAngleLimit + 1] = 0x00;
                 servo.registers[kRegisterMaxAngleLimit] = 0x03;
                 servo.registers[kRegisterMaxAngleLimit + 1] = 0xFF;
+                servo.registers[kRegisterFirmwareMajor] = 3;
+                servo.registers[kRegisterFirmwareMinor] = 24;
+                servo.registers[kRegisterEnd] = 1;
+                servo.registers[kRegisterMaxTemperature] = 80;
+                servo.registers[kRegisterMaxInputVoltage] = 90;
+                servo.registers[kRegisterMinInputVoltage] = 45;
                 servo.registers[kRegisterMaxTorque] = 0x03;
                 servo.registers[kRegisterMaxTorque + 1] = 0xE8;
+                servo.registers[kRegisterUnloadingCondition] = 32;
+                servo.registers[kRegisterLedAlarmCondition] = 37;
                 servo.registers[kRegisterPCoefficient] = 15;
                 servo.registers[kRegisterDCoefficient] = 15;
                 servo.registers[kRegisterCwDeadZone] = 1;

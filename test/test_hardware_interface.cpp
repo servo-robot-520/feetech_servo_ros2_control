@@ -49,6 +49,7 @@ namespace feetech_servo_ros2_control {
             info.hardware_parameters["usb_port"] = port;
             info.hardware_parameters["baud_rate"] = "1000000";
             info.hardware_parameters["range_deg"] = "300";
+            info.hardware_parameters["scan_servos"] = "false";
             for (const auto id : ids) {
                 info.joints.push_back(make_joint(id));
             }
@@ -204,6 +205,53 @@ namespace feetech_servo_ros2_control {
             EXPECT_EQ(bus_->register_value(1, kRegisterId), 1);
 
             std::filesystem::remove(yaml_path);
+        }
+
+        TEST_F(HardwareInterfaceTest, ConfiguresTemperatureVoltageAndProtection) {
+            auto info = make_hardware_info(bus_->slave_path(), {1});
+            auto& params = info.joints[0].parameters;
+            params["max_temperature"] = "70";
+            params["max_input_voltage"] = "100";
+            params["min_input_voltage"] = "50";
+            params["unloading_condition"] = "16";
+            params["led_alarm_condition"] = "3";
+            params["protection_torque"] = "30";
+            params["protection_time"] = "50";
+            params["overload_torque"] = "70";
+
+            FeetechServoHardwareInterface hardware;
+            ASSERT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::SUCCESS);
+
+            EXPECT_EQ(bus_->register_value(1, kRegisterMaxTemperature), 70);
+            EXPECT_EQ(bus_->register_value(1, kRegisterMaxInputVoltage), 100);
+            EXPECT_EQ(bus_->register_value(1, kRegisterMinInputVoltage), 50);
+            EXPECT_EQ(bus_->register_value(1, kRegisterUnloadingCondition), 16);
+            EXPECT_EQ(bus_->register_value(1, kRegisterLedAlarmCondition), 3);
+            EXPECT_EQ(bus_->register_value(1, kRegisterProtectionTorque), 30);
+            EXPECT_EQ(bus_->register_value(1, kRegisterProtectionTime), 50);
+            EXPECT_EQ(bus_->register_value(1, kRegisterOverloadTorque), 70);
+            EXPECT_EQ(bus_->register_value(1, kRegisterEepromLock), 1);
+        }
+
+        TEST_F(HardwareInterfaceTest, RejectsInvalidVoltageWindow) {
+            auto info = make_hardware_info(bus_->slave_path(), {1});
+            info.joints[0].parameters["min_input_voltage"] = "100";
+            info.joints[0].parameters["max_input_voltage"] = "90";
+
+            FeetechServoHardwareInterface hardware;
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
+            EXPECT_EQ(bus_->register_value(1, kRegisterEepromLock), 1);
+            EXPECT_EQ(bus_->register_value(1, kRegisterMinInputVoltage), 45);
+            EXPECT_EQ(bus_->register_value(1, kRegisterMaxInputVoltage), 90);
+        }
+
+        TEST_F(HardwareInterfaceTest, ScansBusOnStartup) {
+            auto info = make_hardware_info(bus_->slave_path(), {1});
+            info.hardware_parameters["scan_servos"] = "true";
+            info.hardware_parameters["response_timeout_ms"] = "2";
+
+            FeetechServoHardwareInterface hardware;
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::SUCCESS);
         }
 
         TEST_F(HardwareInterfaceTest, RejectsUnsupportedCommandInterface) {

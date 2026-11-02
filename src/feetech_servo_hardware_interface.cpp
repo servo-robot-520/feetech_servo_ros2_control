@@ -142,6 +142,8 @@ namespace feetech_servo_ros2_control {
         protocol_ = std::make_unique<ScsProtocol>(
             *serial_port_, std::chrono::milliseconds(options_.response_timeout_ms));
 
+        scan_bus();
+
         if (const auto result = check_models(); !result) {
             return fail(result.error());
         }
@@ -229,6 +231,14 @@ namespace feetech_servo_ros2_control {
                 return fail(result.error());
             }
             options_.strict_model_check = value;
+        }
+
+        if (const auto it = parameters.find("scan_servos"); it != parameters.end()) {
+            bool value = false;
+            if (const auto result = parse_boolean("scan_servos", it->second, &value); !result) {
+                return fail(result.error());
+            }
+            options_.scan_servos = value;
         }
 
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -423,8 +433,13 @@ namespace feetech_servo_ros2_control {
         // Validate every configured value before touching the servo, so a typo
         // cannot leave a servo half-configured.
         std::vector<ByteSetting> byte_settings;
-        const std::array<ByteParameter, 8> byte_parameters{{
+        const std::array<ByteParameter, 13> byte_parameters{{
             {"return_delay_time", kRegisterReturnDelay, 0, 254},
+            {"max_temperature", kRegisterMaxTemperature, 0, 100},
+            {"max_input_voltage", kRegisterMaxInputVoltage, 0, 254},
+            {"min_input_voltage", kRegisterMinInputVoltage, 0, 254},
+            {"unloading_condition", kRegisterUnloadingCondition, 0, 254},
+            {"led_alarm_condition", kRegisterLedAlarmCondition, 0, 254},
             {"p_coefficient", kRegisterPCoefficient, 0, 254},
             {"d_coefficient", kRegisterDCoefficient, 0, 254},
             {"cw_dead", kRegisterCwDeadZone, 0, 32},
@@ -445,6 +460,20 @@ namespace feetech_servo_ros2_control {
                 return result;
             }
             byte_settings.push_back({parameter.name, parameter.address, static_cast<uint8_t>(value)});
+        }
+
+        const auto find_byte_setting = [&byte_settings](const char* name) -> const ByteSetting* {
+            for (const auto& setting : byte_settings) {
+                if (std::string(setting.name) == name) {
+                    return &setting;
+                }
+            }
+            return nullptr;
+        };
+        const ByteSetting* min_voltage = find_byte_setting("min_input_voltage");
+        const ByteSetting* max_voltage = find_byte_setting("max_input_voltage");
+        if (min_voltage != nullptr && max_voltage != nullptr && min_voltage->value > max_voltage->value) {
+            return Result::failure("min_input_voltage must not exceed max_input_voltage");
         }
 
         std::vector<WordSetting> word_settings;
@@ -513,6 +542,38 @@ namespace feetech_servo_ros2_control {
         }
 
         return protocol_->set_eeprom_locked(id, true);
+    }
+
+    void FeetechServoHardwareInterface::scan_bus() {
+        if (!options_.scan_servos) {
+            LOG_INFO("scan: disabled (scan_servos=false)");
+            return;
+        }
+
+        std::array<uint8_t, 8> identity{};
+        int found = 0;
+        for (int id = 0; id <= static_cast<int>(kMaxServoId); ++id) {
+            if (!protocol_->ping(static_cast<uint8_t>(id))) {
+                continue;
+            }
+            ++found;
+            if (const auto result = protocol_->read_registers(static_cast<uint8_t>(id), kRegisterFirmwareMajor,
+                                                              identity);
+                !result) {
+                LOG_WARN("scan: id={} responded but identity read failed: {}", id, result.error());
+                continue;
+            }
+
+            const auto model = static_cast<uint16_t>((identity[kRegisterServoMajor] << 8) |
+                                                     identity[kRegisterServoMinor]);
+            const int baud_rate = baud_rate_from_code(identity[kRegisterBaudRate]);
+            const std::string baud_text = baud_rate > 0 ? std::to_string(baud_rate) : "unknown";
+            LOG_INFO("scan: id={} firmware={}.{} servo={}.{} model={} baud={} bps (code {})", id,
+                     identity[kRegisterFirmwareMajor], identity[kRegisterFirmwareMinor],
+                     identity[kRegisterServoMajor], identity[kRegisterServoMinor], model_name(model),
+                     baud_text, identity[kRegisterBaudRate]);
+        }
+        LOG_INFO("scan: {} servo(s) responded", found);
     }
 
     std::vector<hardware_interface::StateInterface>

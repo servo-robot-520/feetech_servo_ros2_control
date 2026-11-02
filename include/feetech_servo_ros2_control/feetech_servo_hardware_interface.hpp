@@ -63,12 +63,14 @@ namespace feetech_servo_ros2_control {
             double range_deg{300.0};
             uint16_t default_speed{1000};
             bool strict_model_check{false};
+            bool scan_servos{true};
         };
 
         hardware_interface::CallbackReturn parse_options();
         hardware_interface::CallbackReturn build_joints();
         Result configure_joint(const Joint& joint);
         Result check_models();
+        void scan_bus();
 
         Options options_;
         JointConfigFile config_file_;

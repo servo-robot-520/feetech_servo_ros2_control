@@ -69,10 +69,27 @@ Only the `position` command interface is supported.
 | `range_deg` | `300` | Mechanical travel of the servo across 0..1023 ticks. Per-joint `range_deg` overrides it. |
 | `default_speed` | `1000` | Command speed in ticks/s when a joint does not set `speed`. |
 | `strict_model_check` | `false` | Reject servos whose model is not SC215/SC225. |
+| `scan_servos` | `true` | Ping every id 0..253 on startup and log firmware/servo versions and baud rate. |
 
+The serial device and baud rate may also be provided by the joint config file
 The serial device and baud rate may also be provided by the joint config file
 (top-level `usb_port` / `baud_rate`); the config file takes precedence over the
 URDF parameters.
+
+### Startup bus scan
+
+With `scan_servos` enabled (default), `on_init` pings every servo id from 0 to
+253 and reads addresses 0..7 of each responder. One line is logged per servo:
+
+```
+scan: id=8 firmware=3.24 servo=9.35 model=SC225 baud=1000000 bps (code 0)
+scan: 1 servo(s) responded
+```
+
+`firmware` is the firmware major/minor version (registers 0/1), `servo` is the
+servo major/minor version (registers 3/4), and `baud` is decoded from register 6.
+Scanning costs one `response_timeout_ms` per absent id; set `scan_servos` to
+`false` for a faster start on large buses.
 
 ### Logging
 
@@ -103,10 +120,17 @@ parameters on `on_init`:
 | `d_coefficient` | 22 | 0..254 | Position loop D gain. |
 | `cw_dead` | 26 | 0..32 | Clockwise dead zone, ticks. |
 | `ccw_dead` | 27 | 0..32 | Counter-clockwise dead zone, ticks. |
+| `max_temperature` | 13 | 0..100 | Maximum operating temperature, °C. |
+| `max_input_voltage` | 14 | 0..254 | Maximum input voltage, 0.1 V units (90 = 9.0 V). |
+| `min_input_voltage` | 15 | 0..254 | Minimum input voltage, 0.1 V units (45 = 4.5 V). |
 | `max_torque` | 16 (2 B) | 0..1000 | Maximum torque, 1000 = 100 % stall torque. |
+| `unloading_condition` | 19 | 0..254 | Unloading-condition bit field (which faults release torque). |
+| `led_alarm_condition` | 20 | 0..254 | LED-alarm condition bit field. |
 | `protection_torque` | 37 | 0..100 | Torque output after overload protection, percent. |
 | `protection_time` | 38 | 0..254 | Overload hold time, 40 ms units. |
 | `overload_torque` | 39 | 0..100 | Overload threshold, percent of maximum torque. |
+
+`min_input_voltage` must not exceed `max_input_voltage`.
 
 EEPROM parameters are written only when the servo value differs, with torque
 disabled and the EEPROM unlocked. Parameters that exist on STS servos but not on
@@ -129,6 +153,14 @@ joints:
     range_max: 923
     range_deg: 300
     speed: 800
+    max_temperature: 70
+    max_input_voltage: 100
+    min_input_voltage: 50
+    unloading_condition: 32
+    led_alarm_condition: 37
+    protection_torque: 20
+    protection_time: 100
+    overload_torque: 80
   elbow_joint:
     id: 2
     range_min: 20
@@ -156,7 +188,7 @@ ticks and clamped to `range_min..range_max` before being sent.
 |---|---|---|
 | `position` | rad | present position, tick 511 = 0 rad |
 | `velocity` | rad/s | present speed (sign bit 15), ticks/s |
-| `load` | -1..1 | present load (sign bit 10), 1000 = 100 % |
+| `load` | -1..1 | present load (sign bit 10), 1000 = 100 %; read every cycle |
 | `voltage` | V | present voltage, 0.1 V units |
 | `temperature` | °C | present temperature |
 
