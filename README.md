@@ -19,7 +19,9 @@ colcon test  --packages-select feetech_servo_ros2_control
 ```
 
 Dependencies: ROS 2 Humble (`rclcpp`, `rclcpp_lifecycle`, `hardware_interface`,
-`pluginlib`) and `yaml-cpp`. The serial device must be accessible, typically:
+`pluginlib`), `common_cpp` and `yaml-cpp`. `common_cpp` requires a C++23-capable
+standard library (GCC 13+), so build the workspace with GCC 13. The serial device
+must be accessible, typically:
 
 ```bash
 sudo usermod -aG dialout "$USER"
@@ -71,6 +73,21 @@ Only the `position` command interface is supported.
 The serial device and baud rate may also be provided by the joint config file
 (top-level `usb_port` / `baud_rate`); the config file takes precedence over the
 URDF parameters.
+
+### Logging
+
+Diagnostics use the `common_cpp` logging backend (spdlog console/file sinks with
+the ROS bridge). It is a process-global backend, initialized from the hardware
+parameters on `on_init`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `log.log_level` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `critical`, `off`. |
+| `log.log_path` | `./log` | Directory for `log_<name>_<timestamp>.log`. |
+| `log.async` | `true` | Asynchronous spdlog queue. |
+| `log.logger_name` | `feetech_servo_ros2_control` | Logger name, also used by the ROS adapter. |
+| `log.node_name` | `feetech_servo_ros2_control` | Prefix shown in log lines. |
+| `log.filter.black` | empty | Comma-separated filter rules (`start-`, `end-`, `inc-`, `equal-`). |
 
 ### Joint parameters
 

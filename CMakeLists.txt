@@ -14,6 +14,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
+find_package(common_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # Core library: POSIX serial transport, SCS protocol codec, YAML joint configuration.
@@ -35,7 +36,10 @@ target_link_libraries(
   feetech_servo_ros2_control PUBLIC feetech_servo_driver
                                    hardware_interface::hardware_interface
                                    pluginlib::pluginlib rclcpp::rclcpp
-                                   rclcpp_lifecycle::rclcpp_lifecycle)
+                                   rclcpp_lifecycle::rclcpp_lifecycle
+                                   common_cpp::common_cpp_logging_interface
+                                   common_cpp::common_cpp_logging
+                                   common_cpp::common_cpp_ros_logging)
 
 pluginlib_export_plugin_description_file(
   hardware_interface feetech_servo_ros2_control_plugin_description.xml)
@@ -53,7 +57,7 @@ install(
 
 ament_export_targets(feetech_servo_ros2_controlTargets HAS_LIBRARY_TARGET)
 ament_export_dependencies(rclcpp rclcpp_lifecycle hardware_interface pluginlib
-                          yaml-cpp)
+                          common_cpp yaml-cpp)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
