@@ -55,4 +55,23 @@ ament_export_targets(feetech_servo_ros2_controlTargets HAS_LIBRARY_TARGET)
 ament_export_dependencies(rclcpp rclcpp_lifecycle hardware_interface pluginlib
                           yaml-cpp)
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_scs_protocol test/test_scs_protocol.cpp)
+  target_link_libraries(test_scs_protocol feetech_servo_driver)
+
+  ament_add_gtest(test_scs_serial_port test/test_scs_serial_port.cpp)
+  target_include_directories(test_scs_serial_port PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test)
+  target_link_libraries(test_scs_serial_port feetech_servo_driver)
+
+  ament_add_gtest(test_hardware_interface test/test_hardware_interface.cpp)
+  target_include_directories(test_hardware_interface PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test)
+  target_link_libraries(test_hardware_interface feetech_servo_ros2_control)
+
+  ament_add_gtest(test_plugin_loading test/test_plugin_loading.cpp)
+  target_link_libraries(test_plugin_loading feetech_servo_ros2_control
+                        pluginlib::pluginlib)
+endif()
+
 ament_package()
