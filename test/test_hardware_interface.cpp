@@ -190,10 +190,7 @@ TEST_F(HardwareInterfaceTest, ConfigFileCanProvideSerialPortAndBaudRate) {
     std::ofstream file(yaml_path);
     ASSERT_TRUE(file.is_open());
     file << "usb_port: " << bus_->slave_path() << "\n"
-            "baud_rate: 115200\n"
-            "joints:\n"
-            "  arm_joint:\n"
-            "    id: 1\n";
+            "baud_rate: 115200\n";
   }
 
   auto info = make_hardware_info("", {1});

@@ -44,9 +44,9 @@ Result load_joint_config(const std::string& file_path, JointConfigFile* const co
     }
 
     const YAML::Node joints = root["joints"];
-    if (!joints || !joints.IsMap()) {
+    if (joints && !joints.IsMap()) {
       return Result::failure("joint_config_file '" + file_path +
-                             "' has no top-level 'joints:' map");
+                             "': top-level 'joints' must be a map");
     }
 
     for (auto it = joints.begin(); it != joints.end(); ++it) {
