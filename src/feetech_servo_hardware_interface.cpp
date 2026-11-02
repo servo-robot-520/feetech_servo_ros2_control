@@ -98,6 +98,10 @@ hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   };
 
+  options_ = Options{};
+  config_file_ = JointConfigFile{};
+  joints_.clear();
+
   if (const auto it = info_.hardware_parameters.find("joint_config_file");
       it != info_.hardware_parameters.end() && !it->second.empty()) {
     if (const auto result = load_joint_config(it->second, &config_file_); !result) {
