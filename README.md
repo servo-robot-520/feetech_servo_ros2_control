@@ -20,6 +20,26 @@ colcon build --packages-select feetech_servo_ros2_control
 colcon test  --packages-select feetech_servo_ros2_control
 ```
 
+### Plain CMake / CLion
+
+The package also configures as a normal CMake project when the ROS 2 environment
+is sourced. For a standalone build, `common_cpp` must be built/installed first
+(for example with `colcon build --packages-select common_cpp`):
+
+```bash
+source /opt/ros/humble/setup.bash
+cmake -S src/feetech_servo_ros2_control -B build-pkg \
+  -DCMAKE_CXX_COMPILER=g++-13 \
+  -DCMAKE_PREFIX_PATH="$PWD/install/common_cpp:/opt/ros/humble"
+cmake --build build-pkg -j
+```
+
+For CLion, open the workspace root, select GCC 13 and the sourced ROS 2
+environment. The root CMake sets `ROS2_WS_SOURCE_BUILD=ON` and aggregates the
+workspace packages with `add_subdirectory`; this package then links the in-tree
+`common_cpp` targets instead of the installed ones. Add `-DBUILD_TESTING=ON` to
+the CLion CMake options if the test targets should be built as well.
+
 Dependencies: ROS 2 Humble (`rclcpp`, `rclcpp_lifecycle`, `hardware_interface`,
 `pluginlib`), `common_cpp` and `yaml-cpp`. `common_cpp` requires a C++23-capable
 standard library (GCC 13+), so build the workspace with GCC 13. The serial device

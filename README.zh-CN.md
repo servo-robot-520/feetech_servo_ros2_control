@@ -20,6 +20,24 @@ colcon build --packages-select feetech_servo_ros2_control
 colcon test  --packages-select feetech_servo_ros2_control
 ```
 
+### 普通 CMake / CLion
+
+在已 source ROS 2 环境的情况下，本包也可以作为普通 CMake 工程配置。独立构建时
+需要先构建/安装 `common_cpp`（例如 `colcon build --packages-select common_cpp`）：
+
+```bash
+source /opt/ros/humble/setup.bash
+cmake -S src/feetech_servo_ros2_control -B build-pkg \
+  -DCMAKE_CXX_COMPILER=g++-13 \
+  -DCMAKE_PREFIX_PATH="$PWD/install/common_cpp:/opt/ros/humble"
+cmake --build build-pkg -j
+```
+
+使用 CLion 时直接打开工作区根目录，选择 GCC 13 并加载 ROS 2 环境。根 CMake 会设置
+`ROS2_WS_SOURCE_BUILD=ON`，通过 `add_subdirectory` 聚合各功能包；本包此时链接构建树中
+的 `common_cpp` target，而不是已安装版本。若还需要构建测试目标，请在 CLion 的 CMake
+选项中添加 `-DBUILD_TESTING=ON`。
+
 依赖：ROS 2 Humble（`rclcpp`、`rclcpp_lifecycle`、`hardware_interface`、
 `pluginlib`）、`common_cpp` 与 `yaml-cpp`。`common_cpp` 需要支持 C++23 的标准库
 （GCC 13+），因此请使用 GCC 13 构建工作区。串口设备需要可访问，通常：

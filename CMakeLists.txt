@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(feetech_servo_ros2_control)
 
+option(BUILD_TESTING "构建单元测试" ON)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,8 +16,13 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(common_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
+
+# 顶层源码聚合构建（CLion）直接使用本构建树中的 common_cpp target；
+# 普通 colcon/独立 CMake 构建则导入已安装的 common_cpp。
+if (NOT ROS2_WS_SOURCE_BUILD)
+  find_package(common_cpp REQUIRED)
+endif ()
 
 # 核心库：POSIX 串口传输、SCS 协议编解码、YAML 关节配置。
 add_library(feetech_servo_driver SHARED
@@ -36,10 +43,26 @@ target_link_libraries(
   feetech_servo_ros2_control PUBLIC feetech_servo_driver
                                    hardware_interface::hardware_interface
                                    pluginlib::pluginlib rclcpp::rclcpp
-                                   rclcpp_lifecycle::rclcpp_lifecycle
-                                   common_cpp::common_cpp_logging_interface
-                                   common_cpp::common_cpp_logging
-                                   common_cpp::common_cpp_ros_logging)
+                                   rclcpp_lifecycle::rclcpp_lifecycle)
+
+if (ROS2_WS_SOURCE_BUILD)
+  if (NOT TARGET common_cpp_logging_interface
+      OR NOT TARGET common_cpp_logging
+      OR NOT TARGET common_cpp_ros_logging)
+    message(FATAL_ERROR
+            "源码聚合构建需要 common_cpp 的 target。"
+            "请在顶层工作区中先添加 common_cpp，再添加 feetech_servo_ros2_control。")
+  endif ()
+  target_link_libraries(
+    feetech_servo_ros2_control PUBLIC common_cpp_logging_interface
+                                     common_cpp_logging common_cpp_ros_logging)
+else ()
+  target_link_libraries(
+    feetech_servo_ros2_control PUBLIC
+      common_cpp::common_cpp_logging_interface
+      common_cpp::common_cpp_logging
+      common_cpp::common_cpp_ros_logging)
+endif ()
 
 pluginlib_export_plugin_description_file(
   hardware_interface feetech_servo_ros2_control_plugin_description.xml)
