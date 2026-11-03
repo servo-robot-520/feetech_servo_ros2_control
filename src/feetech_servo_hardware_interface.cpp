@@ -11,9 +11,9 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <map>
+#include <ranges>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -131,14 +131,16 @@ namespace feetech_servo_ros2_control {
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        auto fail = [](const std::string& message) {
-            LOG_ERROR("{}", message);
+        const char* caller = __func__;
+        auto fail = [caller](const std::string& message) {
+            LOG_ERROR_WITH_FUNC(caller, "{}", message);
             return hardware_interface::CallbackReturn::ERROR;
         };
 
         options_ = Options{};
         config_file_ = JointConfigFile{};
         joints_.clear();
+        release_resources();
 
         if (const auto it = info_.hardware_parameters.find("joint_config_file");
             it != info_.hardware_parameters.end() && !it->second.empty()) {
@@ -154,37 +156,92 @@ namespace feetech_servo_ros2_control {
             return result;
         }
 
-        serial_port_ = std::make_unique<ScsSerialPort>();
-        if (const auto result = serial_port_->open(options_.usb_port, options_.baud_rate); !result) {
-            return fail(result.error());
-        }
-        protocol_ = std::make_unique<ScsProtocol>(
-            *serial_port_, std::chrono::milliseconds(options_.response_timeout_ms));
-
         LOG_INFO("hardware: usb_port={} baud_rate={} response_timeout_ms={} range_deg={} default_speed={} "
                  "strict_model_check={}",
                  options_.usb_port, options_.baud_rate, options_.response_timeout_ms, options_.range_deg,
                  options_.default_speed, options_.strict_model_check);
 
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_configure(
+        const rclcpp_lifecycle::State& /* previous_state */) {
+        const char* caller = __func__;
+        auto fail = [caller](const std::string& message) {
+            LOG_ERROR_WITH_FUNC(caller, "{}", message);
+            return hardware_interface::CallbackReturn::ERROR;
+        };
+
+        if (joints_.empty() || options_.usb_port.empty()) {
+            return fail("on_configure 在 on_init 之前被调用，或没有配置任何关节");
+        }
+
+        release_resources();
+        serial_port_ = std::make_unique<ScsSerialPort>();
+        if (const auto result = serial_port_->open(options_.usb_port, options_.baud_rate); !result) {
+            release_resources();
+            return fail(result.error());
+        }
+        protocol_ = std::make_unique<ScsProtocol>(
+            *serial_port_, std::chrono::milliseconds(options_.response_timeout_ms));
+
         if (const auto result = verify_servos(); !result) {
+            release_resources();
             return fail(result.error());
         }
 
         for (const auto& joint : joints_) {
             if (const auto result = configure_joint(joint); !result) {
+                release_resources();
                 return fail("Joint '" + joint.name + "' (id=" + std::to_string(joint.id) +
                             "): " + result.error());
             }
         }
 
-        LOG_INFO("Configured {} SCS servo(s) on {} at {} baud", joints_.size(), options_.usb_port,
-                 options_.baud_rate);
+        LOG_INFO_WITH_FUNC(caller, "Configured {} SCS servo(s) on {} at {} baud", joints_.size(),
+                           options_.usb_port, options_.baud_rate);
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
+    hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_cleanup(
+        const rclcpp_lifecycle::State& /* previous_state */) {
+        const char* caller = __func__;
+        bool success = true;
+        if (protocol_) {
+            for (auto& joint : joints_) {
+                if (!joint.torque_enabled) {
+                    continue;
+                }
+                if (const auto result = protocol_->set_torque_enabled(joint.id, false); !result) {
+                    LOG_ERROR_WITH_FUNC(caller, "servo id={} ({}): disabling torque failed: {}",
+                                        static_cast<unsigned>(joint.id), joint.name, result.error());
+                    success = false;
+                    continue;
+                }
+                joint.torque_enabled = false;
+            }
+        }
+        release_resources();
+        LOG_INFO_WITH_FUNC(caller, "串口已关闭");
+        return success
+            ? hardware_interface::CallbackReturn::SUCCESS
+            : hardware_interface::CallbackReturn::ERROR;
+    }
+
+    hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_shutdown(
+        const rclcpp_lifecycle::State& previous_state) {
+        return on_cleanup(previous_state);
+    }
+
+    void FeetechServoHardwareInterface::release_resources() {
+        protocol_.reset();
+        serial_port_.reset();
+    }
+
     hardware_interface::CallbackReturn FeetechServoHardwareInterface::parse_options() {
-        auto fail = [](const std::string& message) {
-            LOG_ERROR("{}", message);
+        const char* caller = __func__;
+        auto fail = [caller](const std::string& message) {
+            LOG_ERROR_WITH_FUNC(caller, "{}", message);
             return hardware_interface::CallbackReturn::ERROR;
         };
 
@@ -258,8 +315,9 @@ namespace feetech_servo_ros2_control {
     }
 
     hardware_interface::CallbackReturn FeetechServoHardwareInterface::build_joints() {
-        auto fail = [](const std::string& message) {
-            LOG_ERROR("{}", message);
+        const char* caller = __func__;
+        auto fail = [caller](const std::string& message) {
+            LOG_ERROR_WITH_FUNC(caller, "{}", message);
             return hardware_interface::CallbackReturn::ERROR;
         };
 
@@ -316,7 +374,7 @@ namespace feetech_servo_ros2_control {
             for (const char* unsupported :
                  {"homing_offset", "offset", "i_coefficient", "acceleration", "protection_current",
                   "max_torque_limit"}) {
-                if (merged.find(unsupported) != merged.end()) {
+                if (merged.contains(unsupported)) {
                     return fail("Joint '" + joint.name + "': parameter '" + unsupported +
                                 "' is not available on SCS series servos");
                 }
@@ -378,8 +436,7 @@ namespace feetech_servo_ros2_control {
             }
 
             for (const auto& state_interface : joint_info.state_interfaces) {
-                if (supported_state_interfaces().find(state_interface.name) ==
-                    supported_state_interfaces().end()) {
+                if (!supported_state_interfaces().contains(state_interface.name)) {
                     return fail("Joint '" + joint.name + "': unsupported state interface '" +
                                 state_interface.name + "' (supported: position, velocity, load, voltage, "
                                                        "temperature)");
@@ -390,16 +447,16 @@ namespace feetech_servo_ros2_control {
             joints_.push_back(std::move(joint));
         }
 
-        for (const auto& entry : yaml_by_id) {
-            if (used_ids.find(entry.first) == used_ids.end()) {
-                LOG_WARN("joint_config_file: servo id {} does not match any URDF joint", entry.first);
+        for (const auto& key : yaml_by_id | std::views::keys) {
+            if (!used_ids.contains(key)) {
+                LOG_WARN("joint_config_file: servo id {} does not match any URDF joint", key);
             }
         }
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
-    Result FeetechServoHardwareInterface::verify_servos() {
+    Result FeetechServoHardwareInterface::verify_servos() const {
         for (const auto& joint : joints_) {
             if (const auto result = protocol_->ping(joint.id); !result) {
                 return Result::failure("Configured servo id " + std::to_string(joint.id) + " (joint '" +
@@ -432,7 +489,7 @@ namespace feetech_servo_ros2_control {
             std::string config_text;
             for (const auto& [key, value] : sorted_params) {
                 if (!config_text.empty()) {
-                    config_text += " ";
+                    config_text += ' ';
                 }
                 config_text += key + "=" + value;
             }
@@ -443,7 +500,7 @@ namespace feetech_servo_ros2_control {
         return Result::success();
     }
 
-    Result FeetechServoHardwareInterface::configure_joint(const Joint& joint) {
+    Result FeetechServoHardwareInterface::configure_joint(const Joint& joint) const {
         struct ByteSetting {
             const char* name;
             uint8_t address;
@@ -470,33 +527,33 @@ namespace feetech_servo_ros2_control {
 
         // 先校验全部配置值，再操作舵机，避免参数错误导致舵机配置到一半。
         std::vector<ByteSetting> byte_settings;
-        const std::array<ByteParameter, 13> byte_parameters{{
-            {"return_delay_time", kRegisterReturnDelay, 0, 254},
-            {"max_temperature", kRegisterMaxTemperature, 0, 100},
-            {"max_input_voltage", kRegisterMaxInputVoltage, 0, 254},
-            {"min_input_voltage", kRegisterMinInputVoltage, 0, 254},
-            {"unloading_condition", kRegisterUnloadingCondition, 0, 254},
-            {"led_alarm_condition", kRegisterLedAlarmCondition, 0, 254},
-            {"p_coefficient", kRegisterPCoefficient, 0, 254},
-            {"d_coefficient", kRegisterDCoefficient, 0, 254},
-            {"cw_dead", kRegisterCwDeadZone, 0, 32},
-            {"ccw_dead", kRegisterCcwDeadZone, 0, 32},
-            {"protection_torque", kRegisterProtectionTorque, 0, 100},
-            {"protection_time", kRegisterProtectionTime, 0, 254},
-            {"overload_torque", kRegisterOverloadTorque, 0, 100},
+        constexpr std::array<ByteParameter, 13> byte_parameters{{
+            {.name = "return_delay_time", .address = kRegisterReturnDelay, .min = 0, .max = 254},
+            {.name = "max_temperature", .address = kRegisterMaxTemperature, .min = 0, .max = 100},
+            {.name = "max_input_voltage", .address = kRegisterMaxInputVoltage, .min = 0, .max = 254},
+            {.name = "min_input_voltage", .address = kRegisterMinInputVoltage, .min = 0, .max = 254},
+            {.name = "unloading_condition", .address = kRegisterUnloadingCondition, .min = 0, .max = 254},
+            {.name = "led_alarm_condition", .address = kRegisterLedAlarmCondition, .min = 0, .max = 254},
+            {.name = "p_coefficient", .address = kRegisterPCoefficient, .min = 0, .max = 254},
+            {.name = "d_coefficient", .address = kRegisterDCoefficient, .min = 0, .max = 254},
+            {.name = "cw_dead", .address = kRegisterCwDeadZone, .min = 0, .max = 32},
+            {.name = "ccw_dead", .address = kRegisterCcwDeadZone, .min = 0, .max = 32},
+            {.name = "protection_torque", .address = kRegisterProtectionTorque, .min = 0, .max = 100},
+            {.name = "protection_time", .address = kRegisterProtectionTime, .min = 0, .max = 254},
+            {.name = "overload_torque", .address = kRegisterOverloadTorque, .min = 0, .max = 100},
         }};
-        for (const auto& parameter : byte_parameters) {
-            const auto it = joint.params.find(parameter.name);
+        for (const auto& [name, address, min, max] : byte_parameters) {
+            const auto it = joint.params.find(name);
             if (it == joint.params.end()) {
                 continue;
             }
             int value = 0;
-            if (const auto result = parse_integer(std::string(parameter.name), it->second, parameter.min,
-                                                  parameter.max, &value);
+            if (const auto result = parse_integer(std::string(name), it->second, min,
+                                                  max, &value);
                 !result) {
                 return result;
             }
-            byte_settings.push_back({parameter.name, parameter.address, static_cast<uint8_t>(value)});
+            byte_settings.push_back({.name = name, .address = address, .value = static_cast<uint8_t>(value)});
         }
 
         const auto find_byte_setting = [&byte_settings](const char* name) -> const ByteSetting* {
@@ -508,35 +565,35 @@ namespace feetech_servo_ros2_control {
             return nullptr;
         };
         const ByteSetting* min_voltage = find_byte_setting("min_input_voltage");
-        const ByteSetting* max_voltage = find_byte_setting("max_input_voltage");
-        if (min_voltage != nullptr && max_voltage != nullptr && min_voltage->value > max_voltage->value) {
+        if (const ByteSetting* max_voltage = find_byte_setting("max_input_voltage");
+            min_voltage != nullptr && max_voltage != nullptr && min_voltage->value > max_voltage->value) {
             return Result::failure("min_input_voltage must not exceed max_input_voltage");
         }
 
         std::vector<WordSetting> word_settings;
-        const std::array<WordParameter, 1> word_parameters{{
-            {"max_torque", kRegisterMaxTorque, 0, 1000},
+        constexpr std::array<WordParameter, 1> word_parameters{{
+            {.name = "max_torque", .address = kRegisterMaxTorque, .min = 0, .max = 1000},
         }};
-        for (const auto& parameter : word_parameters) {
-            const auto it = joint.params.find(parameter.name);
+        for (const auto& [name, address, min, max] : word_parameters) {
+            const auto it = joint.params.find(name);
             if (it == joint.params.end()) {
                 continue;
             }
             int value = 0;
-            if (const auto result = parse_integer(std::string(parameter.name), it->second, parameter.min,
-                                                  parameter.max, &value);
+            if (const auto result = parse_integer(std::string(name), it->second, min,
+                                                  max, &value);
                 !result) {
                 return result;
             }
-            word_settings.push_back({parameter.name, parameter.address, static_cast<uint16_t>(value)});
+            word_settings.push_back({.name = name, .address = address, .value = static_cast<uint16_t>(value)});
         }
 
         // 角度限制以度为单位（相对中位），写入舵机时换算为 tick。
         if (joint.eeprom_min_tick) {
-            word_settings.push_back({"range_min", kRegisterMinAngleLimit, *joint.eeprom_min_tick});
+            word_settings.push_back({.name = "range_min", .address = kRegisterMinAngleLimit, .value = *joint.eeprom_min_tick});
         }
         if (joint.eeprom_max_tick) {
-            word_settings.push_back({"range_max", kRegisterMaxAngleLimit, *joint.eeprom_max_tick});
+            word_settings.push_back({.name = "range_max", .address = kRegisterMaxAngleLimit, .value = *joint.eeprom_max_tick});
         }
 
         const auto id = joint.id;
@@ -547,45 +604,45 @@ namespace feetech_servo_ros2_control {
             return result;
         }
 
-        for (const auto& setting : byte_settings) {
+        for (const auto& [name, address, value] : byte_settings) {
             std::array<uint8_t, 1> current{};
-            if (const auto result = protocol_->read_registers(id, setting.address, current); !result) {
-                return Result::failure(std::string("Reading '") + setting.name + "' failed: " +
+            if (const auto result = protocol_->read_registers(id, address, current); !result) {
+                return Result::failure(std::string("Reading '") + name + "' failed: " +
                                        result.error());
             }
-            if (current[0] == setting.value) {
+            if (current[0] == value) {
                 continue;
             }
-            const std::array<uint8_t, 1> desired{setting.value};
-            if (const auto result = protocol_->write_registers(id, setting.address, desired); !result) {
-                return Result::failure(std::string("Writing '") + setting.name + "' failed: " +
+            const std::array<uint8_t, 1> desired{value};
+            if (const auto result = protocol_->write_registers(id, address, desired); !result) {
+                return Result::failure(std::string("Writing '") + name + "' failed: " +
                                        result.error());
             }
             LOG_INFO("servo id={} ({}): {}: current={} configured={} -> update", static_cast<unsigned>(id),
-                     joint.name, setting.name, static_cast<unsigned>(current[0]),
-                     static_cast<unsigned>(setting.value));
+                     joint.name, name, static_cast<unsigned>(current[0]),
+                     static_cast<unsigned>(value));
         }
 
-        for (const auto& setting : word_settings) {
+        for (const auto& [name, address, value] : word_settings) {
             std::array<uint8_t, 2> current{};
-            if (const auto result = protocol_->read_registers(id, setting.address, current); !result) {
-                return Result::failure(std::string("Reading '") + setting.name + "' failed: " +
+            if (const auto result = protocol_->read_registers(id, address, current); !result) {
+                return Result::failure(std::string("Reading '") + name + "' failed: " +
                                        result.error());
             }
-            if (decode_word(current.data()) == setting.value) {
+            if (decode_word(current.data()) == value) {
                 continue;
             }
             std::array<uint8_t, 2> desired{};
-            encode_word(desired.data(), setting.value);
-            if (const auto result = protocol_->write_registers(id, setting.address, desired); !result) {
-                return Result::failure(std::string("Writing '") + setting.name + "' failed: " +
+            encode_word(desired.data(), value);
+            if (const auto result = protocol_->write_registers(id, address, desired); !result) {
+                return Result::failure(std::string("Writing '") + name + "' failed: " +
                                        result.error());
             }
-            const bool angle_limit = std::string(setting.name) == "range_min" ||
-                std::string(setting.name) == "range_max";
+            const bool angle_limit = std::string(name) == "range_min" ||
+                std::string(name) == "range_max";
             LOG_INFO("servo id={} ({}): {}: current={}{} configured={}{} -> update", static_cast<unsigned>(id),
-                     joint.name, setting.name, decode_word(current.data()), angle_limit ? " ticks" : "",
-                     static_cast<unsigned>(setting.value), angle_limit ? " ticks" : "");
+                     joint.name, name, decode_word(current.data()), angle_limit ? " ticks" : "",
+                     static_cast<unsigned>(value), angle_limit ? " ticks" : "");
         }
 
         return protocol_->set_eeprom_locked(id, true);
@@ -639,6 +696,10 @@ namespace feetech_servo_ros2_control {
 
     hardware_interface::return_type FeetechServoHardwareInterface::read(
         const rclcpp::Time& /* time */, const rclcpp::Duration& /* period */) {
+        if (!protocol_) {
+            LOG_ERROR_WITH_FUNC(__func__, "read 在 on_configure 之前被调用");
+            return hardware_interface::return_type::ERROR;
+        }
         std::array<uint8_t, kFeedbackLength> feedback{};
 
         for (auto& joint : joints_) {
@@ -667,6 +728,10 @@ namespace feetech_servo_ros2_control {
 
     hardware_interface::return_type FeetechServoHardwareInterface::write(
         const rclcpp::Time& /* time */, const rclcpp::Duration& /* period */) {
+        if (!protocol_) {
+            LOG_ERROR_WITH_FUNC(__func__, "write 在 on_configure 之前被调用");
+            return hardware_interface::return_type::ERROR;
+        }
         std::vector<uint8_t> ids;
         std::vector<uint16_t> positions;
         std::vector<uint16_t> speeds;
@@ -698,6 +763,10 @@ namespace feetech_servo_ros2_control {
 
     hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_activate(
         const rclcpp_lifecycle::State& /* previous_state */) {
+        if (!protocol_) {
+            LOG_ERROR_WITH_FUNC(__func__, "on_activate 在 on_configure 之前被调用");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
         if (read(rclcpp::Time{}, rclcpp::Duration::from_seconds(0.0)) !=
             hardware_interface::return_type::OK) {
             return hardware_interface::CallbackReturn::ERROR;
@@ -727,6 +796,9 @@ namespace feetech_servo_ros2_control {
 
     hardware_interface::CallbackReturn FeetechServoHardwareInterface::on_deactivate(
         const rclcpp_lifecycle::State& /* previous_state */) {
+        if (!protocol_) {
+            return hardware_interface::CallbackReturn::SUCCESS;
+        }
         bool success = true;
         for (auto& joint : joints_) {
             if (!joint.torque_enabled) {
@@ -740,8 +812,9 @@ namespace feetech_servo_ros2_control {
             }
             joint.torque_enabled = false;
         }
-        return success ? hardware_interface::CallbackReturn::SUCCESS
-                       : hardware_interface::CallbackReturn::ERROR;
+        return success
+            ? hardware_interface::CallbackReturn::SUCCESS
+            : hardware_interface::CallbackReturn::ERROR;
     }
 
 } // namespace feetech_servo_ros2_control

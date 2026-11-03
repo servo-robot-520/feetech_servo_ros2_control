@@ -93,8 +93,8 @@ sudo usermod -aG dialout "$USER"
 
 ### 启动校验
 
-`on_init` 只访问 URDF / 关节配置文件中定义的舵机 id，不再扫描整条总线。对每个已配置
-关节：
+`on_configure` 只访问 URDF / 关节配置文件中定义的舵机 id，不再扫描整条总线。对每个
+已配置关节：
 
 1. ping 该 id；舵机无应答时输出错误日志并中止启动；
 2. 读取并打印固件主/次版本（寄存器 0/1）、舵机主/次版本（寄存器 3/4）及其推导出的型号；
@@ -205,13 +205,15 @@ radians = (ticks - 511) * range_deg * pi / 180 / 1024
 
 ## 生命周期
 
-- `on_init`：打开总线，读取并打印型号，写入显式配置的 EEPROM 参数（关闭扭矩、解锁
-  EEPROM，写完后再上锁）。
+- `on_init`：解析并校验硬件与关节配置，不访问总线。
+- `on_configure`：打开总线，校验已配置的舵机，并写入显式配置的 EEPROM 参数（关闭扭矩、
+  解锁 EEPROM，写完后再上锁）。
 - `on_activate`：读取当前位置，把命令值锁存到当前位置，然后为带 position 命令接口的
   关节使能扭矩。
 - `read`：每个关节在 `0x38` 起始处顺序读取 15 字节（`0x38..0x46`），包含负载与电流。
 - `write`：对全部被命令的关节在 `0x2A` 起始处发送一次 SYNC WRITE。
 - `on_deactivate`：关闭扭矩。
+- `on_cleanup` / `on_shutdown`：必要时关闭扭矩并关闭串口。
 
 舵机在 `response_timeout_ms` 内未应答时，`read`/`write` 返回 `ERROR`。
 

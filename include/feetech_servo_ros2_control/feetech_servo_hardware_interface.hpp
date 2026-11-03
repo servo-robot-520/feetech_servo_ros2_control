@@ -23,9 +23,21 @@ namespace feetech_servo_ros2_control {
     /// 一个实例管理一条串口总线，每个关节对应一个舵机 id。
     class FeetechServoHardwareInterface : public hardware_interface::SystemInterface {
     public:
-        /// @brief 解析硬件与关节参数、打开串口、校验已配置的舵机并写入 EEPROM 配置。
+        /// @brief 解析硬件与关节参数并校验配置，不访问硬件。
         /// @param info ros2_control 从 URDF 解析出的硬件信息。
         hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override;
+
+        /// @brief 打开串口、校验已配置的舵机并写入 EEPROM 配置。
+        hardware_interface::CallbackReturn on_configure(
+            const rclcpp_lifecycle::State& previous_state) override;
+
+        /// @brief 关闭串口并释放通信资源。
+        hardware_interface::CallbackReturn on_cleanup(
+            const rclcpp_lifecycle::State& previous_state) override;
+
+        /// @brief 进程关闭前释放通信资源。
+        hardware_interface::CallbackReturn on_shutdown(
+            const rclcpp_lifecycle::State& previous_state) override;
 
         /// @brief 导出 URDF 中声明的状态接口。
         std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
@@ -89,10 +101,13 @@ namespace feetech_servo_ros2_control {
         hardware_interface::CallbackReturn build_joints();
 
         /// @brief 把关节的 EEPROM 参数写入舵机，仅在寄存器值不一致时更新。
-        Result configure_joint(const Joint& joint);
+        Result configure_joint(const Joint& joint) const;
 
         /// @brief 校验所有已配置舵机在线，并打印版本与配置信息。
-        Result verify_servos();
+        Result verify_servos() const;
+
+        /// @brief 释放协议与串口对象。
+        void release_resources();
 
         Options options_;
         JointConfigFile config_file_;

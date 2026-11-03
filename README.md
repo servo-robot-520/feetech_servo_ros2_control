@@ -98,8 +98,8 @@ URDF parameters.
 
 ### Startup verification
 
-`on_init` only contacts the servo ids configured in the URDF / joint config file;
-there is no full-bus scan. For each configured joint it:
+`on_configure` only contacts the servo ids configured in the URDF / joint config
+file; there is no full-bus scan. For each configured joint it:
 
 1. pings the id and aborts initialization with an error log if the servo does not
    answer;
@@ -218,13 +218,16 @@ servo EEPROM angle-limit registers. Commands are rounded to ticks and clamped to
 
 ## Lifecycle
 
-- `on_init`: opens the bus, reads and logs the model, writes explicit EEPROM
-  settings (torque off, EEPROM unlocked, then locked again).
+- `on_init`: parses and validates the hardware/joint configuration; it does not
+  access the bus.
+- `on_configure`: opens the bus, verifies the configured servos and writes
+  explicit EEPROM settings (torque off, EEPROM unlocked, then locked again).
 - `on_activate`: reads current positions, latches commands to them, then enables
   torque on joints with a position command interface.
 - `read`: one sequential 15-byte read per joint at `0x38` (`0x38..0x46`), including load and current.
 - `write`: one SYNC WRITE at `0x2A` for all commanded joints.
 - `on_deactivate`: disables torque.
+- `on_cleanup` / `on_shutdown`: disable torque if needed and close the bus.
 
 A servo that does not answer within `response_timeout_ms` makes `read`/`write`
 return `ERROR`.
