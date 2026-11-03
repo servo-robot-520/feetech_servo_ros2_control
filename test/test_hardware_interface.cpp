@@ -267,12 +267,18 @@ namespace feetech_servo_ros2_control {
             info.joints[0].parameters["max_input_voltage"] = "90";
 
             FeetechServoHardwareInterface hardware;
-            ASSERT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::SUCCESS);
-            EXPECT_EQ(hardware.on_configure(rclcpp_lifecycle::State()),
-                      hardware_interface::CallbackReturn::ERROR);
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
             EXPECT_EQ(bus_->register_value(1, kRegisterEepromLock), 1);
             EXPECT_EQ(bus_->register_value(1, kRegisterMinInputVoltage), 45);
             EXPECT_EQ(bus_->register_value(1, kRegisterMaxInputVoltage), 90);
+        }
+
+        TEST_F(HardwareInterfaceTest, RejectsOutOfRangeRegisterParameter) {
+            auto info = make_hardware_info(bus_->slave_path(), {1});
+            info.joints[0].parameters["max_torque"] = "2000";
+
+            FeetechServoHardwareInterface hardware;
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
         }
 
         TEST_F(HardwareInterfaceTest, RejectsMissingConfiguredServo) {

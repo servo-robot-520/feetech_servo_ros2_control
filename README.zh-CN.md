@@ -205,7 +205,7 @@ radians = (ticks - 511) * range_deg * pi / 180 / 1024
 
 ## 生命周期
 
-- `on_init`：解析并校验硬件与关节配置，不访问总线。
+- `on_init`：解析并校验硬件与关节配置（含 EEPROM 参数取值范围），不访问总线。
 - `on_configure`：打开总线，校验已配置的舵机，并写入显式配置的 EEPROM 参数（关闭扭矩、
   解锁 EEPROM，写完后再上锁）。
 - `on_activate`：读取当前位置，把命令值锁存到当前位置，然后为带 position 命令接口的

@@ -444,6 +444,9 @@ namespace feetech_servo_ros2_control {
             }
 
             joint.params = std::move(merged);
+            if (const auto result = build_register_settings(joint); !result) {
+                return fail(result.error());
+            }
             joints_.push_back(std::move(joint));
         }
 
@@ -500,18 +503,7 @@ namespace feetech_servo_ros2_control {
         return Result::success();
     }
 
-    Result FeetechServoHardwareInterface::configure_joint(const Joint& joint) const {
-        struct ByteSetting {
-            const char* name;
-            uint8_t address;
-            uint8_t value;
-        };
-        struct WordSetting {
-            const char* name;
-            uint8_t address;
-            uint16_t value;
-        };
-
+    Result FeetechServoHardwareInterface::build_register_settings(Joint& joint) {
         struct ByteParameter {
             const char* name;
             uint8_t address;
@@ -525,8 +517,7 @@ namespace feetech_servo_ros2_control {
             int max;
         };
 
-        // 先校验全部配置值，再操作舵机，避免参数错误导致舵机配置到一半。
-        std::vector<ByteSetting> byte_settings;
+        // 所有 EEPROM 参数都在 on_init 阶段完成解析与范围校验，on_configure 只负责写入。
         constexpr std::array<ByteParameter, 13> byte_parameters{{
             {.name = "return_delay_time", .address = kRegisterReturnDelay, .min = 0, .max = 254},
             {.name = "max_temperature", .address = kRegisterMaxTemperature, .min = 0, .max = 100},
@@ -548,29 +539,29 @@ namespace feetech_servo_ros2_control {
                 continue;
             }
             int value = 0;
-            if (const auto result = parse_integer(std::string(name), it->second, min,
+            if (const auto result = parse_integer("Joint '" + joint.name + "' " + name, it->second, min,
                                                   max, &value);
                 !result) {
                 return result;
             }
-            byte_settings.push_back({.name = name, .address = address, .value = static_cast<uint8_t>(value)});
+            joint.byte_settings.push_back({.name = name, .address = address, .value = static_cast<uint8_t>(value)});
         }
 
-        const auto find_byte_setting = [&byte_settings](const char* name) -> const ByteSetting* {
-            for (const auto& setting : byte_settings) {
-                if (std::string(setting.name) == name) {
+        const auto find_byte_setting = [&joint](const char* name) -> const Joint::ByteSetting* {
+            for (const auto& setting : joint.byte_settings) {
+                if (setting.name == name) {
                     return &setting;
                 }
             }
             return nullptr;
         };
-        const ByteSetting* min_voltage = find_byte_setting("min_input_voltage");
-        if (const ByteSetting* max_voltage = find_byte_setting("max_input_voltage");
+        const Joint::ByteSetting* min_voltage = find_byte_setting("min_input_voltage");
+        if (const Joint::ByteSetting* max_voltage = find_byte_setting("max_input_voltage");
             min_voltage != nullptr && max_voltage != nullptr && min_voltage->value > max_voltage->value) {
-            return Result::failure("min_input_voltage must not exceed max_input_voltage");
+            return Result::failure("Joint '" + joint.name +
+                                   "': min_input_voltage must not exceed max_input_voltage");
         }
 
-        std::vector<WordSetting> word_settings;
         constexpr std::array<WordParameter, 1> word_parameters{{
             {.name = "max_torque", .address = kRegisterMaxTorque, .min = 0, .max = 1000},
         }};
@@ -580,22 +571,28 @@ namespace feetech_servo_ros2_control {
                 continue;
             }
             int value = 0;
-            if (const auto result = parse_integer(std::string(name), it->second, min,
+            if (const auto result = parse_integer("Joint '" + joint.name + "' " + name, it->second, min,
                                                   max, &value);
                 !result) {
                 return result;
             }
-            word_settings.push_back({.name = name, .address = address, .value = static_cast<uint16_t>(value)});
+            joint.word_settings.push_back({.name = name, .address = address, .value = static_cast<uint16_t>(value)});
         }
 
         // 角度限制以度为单位（相对中位），写入舵机时换算为 tick。
         if (joint.eeprom_min_tick) {
-            word_settings.push_back({.name = "range_min", .address = kRegisterMinAngleLimit, .value = *joint.eeprom_min_tick});
+            joint.word_settings.push_back(
+                {.name = "range_min", .address = kRegisterMinAngleLimit, .value = *joint.eeprom_min_tick});
         }
         if (joint.eeprom_max_tick) {
-            word_settings.push_back({.name = "range_max", .address = kRegisterMaxAngleLimit, .value = *joint.eeprom_max_tick});
+            joint.word_settings.push_back(
+                {.name = "range_max", .address = kRegisterMaxAngleLimit, .value = *joint.eeprom_max_tick});
         }
 
+        return Result::success();
+    }
+
+    Result FeetechServoHardwareInterface::configure_joint(const Joint& joint) const {
         const auto id = joint.id;
         if (const auto result = protocol_->set_torque_enabled(id, false); !result) {
             return result;
@@ -604,7 +601,7 @@ namespace feetech_servo_ros2_control {
             return result;
         }
 
-        for (const auto& [name, address, value] : byte_settings) {
+        for (const auto& [name, address, value] : joint.byte_settings) {
             std::array<uint8_t, 1> current{};
             if (const auto result = protocol_->read_registers(id, address, current); !result) {
                 return Result::failure(std::string("Reading '") + name + "' failed: " +
@@ -623,7 +620,7 @@ namespace feetech_servo_ros2_control {
                      static_cast<unsigned>(value));
         }
 
-        for (const auto& [name, address, value] : word_settings) {
+        for (const auto& [name, address, value] : joint.word_settings) {
             std::array<uint8_t, 2> current{};
             if (const auto result = protocol_->read_registers(id, address, current); !result) {
                 return Result::failure(std::string("Reading '") + name + "' failed: " +

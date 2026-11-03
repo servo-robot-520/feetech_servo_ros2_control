@@ -64,6 +64,20 @@ namespace feetech_servo_ros2_control {
     private:
         /// @brief 单个关节的运行时状态与配置。
         struct Joint {
+            /// @brief 待写入的单字节 EEPROM 参数。
+            struct ByteSetting {
+                std::string name;
+                uint8_t address;
+                uint8_t value;
+            };
+
+            /// @brief 待写入的双字节 EEPROM 参数。
+            struct WordSetting {
+                std::string name;
+                uint8_t address;
+                uint16_t value;
+            };
+
             std::string name;
             uint8_t id{};
             JointParams params;
@@ -72,6 +86,8 @@ namespace feetech_servo_ros2_control {
             uint16_t max_tick{1023};
             std::optional<uint16_t> eeprom_min_tick;
             std::optional<uint16_t> eeprom_max_tick;
+            std::vector<ByteSetting> byte_settings;
+            std::vector<WordSetting> word_settings;
             uint16_t speed{1000};
             bool has_position_command{false};
             bool torque_enabled{false};
@@ -99,6 +115,9 @@ namespace feetech_servo_ros2_control {
 
         /// @brief 按舵机 id 合并 URDF/YAML 参数并校验关节配置。
         hardware_interface::CallbackReturn build_joints();
+
+        /// @brief 解析并校验关节 EEPROM 参数，生成待写入的寄存器列表。
+        Result build_register_settings(Joint& joint);
 
         /// @brief 把关节的 EEPROM 参数写入舵机，仅在寄存器值不一致时更新。
         Result configure_joint(const Joint& joint) const;

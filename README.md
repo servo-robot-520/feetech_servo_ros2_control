@@ -218,8 +218,8 @@ servo EEPROM angle-limit registers. Commands are rounded to ticks and clamped to
 
 ## Lifecycle
 
-- `on_init`: parses and validates the hardware/joint configuration; it does not
-  access the bus.
+- `on_init`: parses and validates the hardware/joint configuration, including
+  EEPROM parameter ranges; it does not access the bus.
 - `on_configure`: opens the bus, verifies the configured servos and writes
   explicit EEPROM settings (torque off, EEPROM unlocked, then locked again).
 - `on_activate`: reads current positions, latches commands to them, then enables
