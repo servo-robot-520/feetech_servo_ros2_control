@@ -139,6 +139,12 @@ namespace feetech_servo_ros2_control::test {
             encode_word(&servos_.at(id).registers[kRegisterPresentLoad], raw);
         }
 
+        /// @brief 设置模拟舵机的当前电流原始值（单位 6.5 mA）。
+        void set_present_current(const uint8_t id, const uint16_t raw) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            encode_word(&servos_.at(id).registers[kRegisterPresentCurrent], raw);
+        }
+
         /// @brief 查询模拟舵机的扭矩开关状态。
         bool torque_enabled(const uint8_t id) const {
             std::lock_guard<std::mutex> lock(mutex_);

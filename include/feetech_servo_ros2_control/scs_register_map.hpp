@@ -47,10 +47,12 @@ namespace feetech_servo_ros2_control {
     inline constexpr uint8_t kRegisterPresentVoltage = 62; // 单位 0.1 V
     inline constexpr uint8_t kRegisterPresentTemperature = 63; // 单位 °C
     inline constexpr uint8_t kRegisterMoving = 66;
+    inline constexpr uint8_t kRegisterPresentCurrent = 69; // 2 字节，符号位 15
 
-    // 一次顺序读取全部反馈状态返回的字节数：
-    // 位置（2）、速度（2）、负载（2）、电压（1）、温度（1）。
-    inline constexpr uint8_t kFeedbackLength = 8;
+    // 一次顺序读取全部反馈状态返回的字节数（地址 0x38..0x46）：
+    // 位置（2）、速度（2）、负载（2）、电压（1）、温度（1）、
+    // 异步写标志（1）、状态（1）、移动标志（1）、保留（2）、电流（2）。
+    inline constexpr uint8_t kFeedbackLength = 15;
 
     inline constexpr uint8_t kInstructionPing = 0x01;
     inline constexpr uint8_t kInstructionRead = 0x02;
@@ -66,6 +68,10 @@ namespace feetech_servo_ros2_control {
 
     inline constexpr uint8_t kSpeedSignBit = 15;
     inline constexpr uint8_t kLoadSignBit = 10;
+    inline constexpr uint8_t kCurrentSignBit = 15;
+
+    // 电流寄存器每个 LSB 对应的安培数（SCS 系列为 6.5 mA）。
+    inline constexpr double kCurrentAmpsPerUnit = 0.0065;
 
     // kRegisterModel 上报告的型号标识。SCS 寄存器高字节在前，因此：
     // SC215（主版本 5、次版本 35）读回 0x0523，SC225（主版本 9、次版本 35）读回 0x0923。

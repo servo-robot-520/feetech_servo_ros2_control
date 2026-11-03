@@ -104,7 +104,7 @@ namespace feetech_servo_ros2_control {
         /// @brief 支持的状态接口名称集合。
         const std::set<std::string>& supported_state_interfaces() {
             static const std::set<std::string> kSupported{"position", "velocity", "load", "voltage",
-                                                          "temperature"};
+                                                          "temperature", "current"};
             return kSupported;
         }
 
@@ -612,6 +612,9 @@ namespace feetech_servo_ros2_control {
                 else if (declared.name == "temperature") {
                     value = &joints_[i].state_temperature;
                 }
+                else if (declared.name == "current") {
+                    value = &joints_[i].state_current;
+                }
                 if (value != nullptr) {
                     interfaces.emplace_back(info_.joints[i].name, declared.name, value);
                 }
@@ -655,6 +658,8 @@ namespace feetech_servo_ros2_control {
             joint.state_load = static_cast<double>(load) / 1000.0;
             joint.state_voltage = static_cast<double>(feedback[6]) * 0.1;
             joint.state_temperature = static_cast<double>(feedback[7]);
+            const int current = decode_sign_magnitude(decode_word(feedback.data() + 13), kCurrentSignBit);
+            joint.state_current = static_cast<double>(current) * kCurrentAmpsPerUnit;
         }
 
         return hardware_interface::return_type::OK;

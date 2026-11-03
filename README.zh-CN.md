@@ -74,7 +74,7 @@ sudo usermod -aG dialout "$USER"
 ```
 
 只有 URDF 中声明的状态接口才会导出。支持的状态接口：`position`、`velocity`、
-`load`、`voltage`、`temperature`。命令接口仅支持 `position`。
+`load`、`voltage`、`temperature`、`current`。命令接口仅支持 `position`。
 
 ### 硬件参数
 
@@ -201,6 +201,7 @@ radians = (ticks - 511) * range_deg * pi / 180 / 1024
 | `load` | -1..1 | 当前负载（符号位 10），1000 = 100%；每周期读取 |
 | `voltage` | V | 当前电压，单位 0.1 V |
 | `temperature` | °C | 当前温度 |
+| `current` | A | 当前电流（0x45），单位 6.5 mA |
 
 ## 生命周期
 
@@ -208,7 +209,7 @@ radians = (ticks - 511) * range_deg * pi / 180 / 1024
   EEPROM，写完后再上锁）。
 - `on_activate`：读取当前位置，把命令值锁存到当前位置，然后为带 position 命令接口的
   关节使能扭矩。
-- `read`：每个关节在 `0x38` 起始处顺序读取 8 字节。
+- `read`：每个关节在 `0x38` 起始处顺序读取 15 字节（`0x38..0x46`），包含负载与电流。
 - `write`：对全部被命令的关节在 `0x2A` 起始处发送一次 SYNC WRITE。
 - `on_deactivate`：关闭扭矩。
 

@@ -33,7 +33,7 @@ namespace feetech_servo_ros2_control {
         /// @brief 导出 URDF 中声明的命令接口（仅支持 position）。
         std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
-        /// @brief 逐关节顺序读取位置、速度、负载、电压和温度。
+        /// @brief 逐关节顺序读取位置、速度、负载、电压、温度和电流。
         hardware_interface::return_type read(const rclcpp::Time& time,
                                              const rclcpp::Duration& period) override;
 
@@ -68,6 +68,7 @@ namespace feetech_servo_ros2_control {
             double state_load{0.0};
             double state_voltage{0.0};
             double state_temperature{0.0};
+            double state_current{0.0};
             double command_position{std::numeric_limits<double>::quiet_NaN()};
         };
 

@@ -77,7 +77,7 @@ sudo usermod -aG dialout "$USER"
 ```
 
 Only state interfaces declared in the URDF are exported. Supported state
-interfaces: `position`, `velocity`, `load`, `voltage`, `temperature`.
+interfaces: `position`, `velocity`, `load`, `voltage`, `temperature`, `current`.
 Only the `position` command interface is supported.
 
 ### Hardware parameters
@@ -214,6 +214,7 @@ servo EEPROM angle-limit registers. Commands are rounded to ticks and clamped to
 | `load` | -1..1 | present load (sign bit 10), 1000 = 100 %; read every cycle |
 | `voltage` | V | present voltage, 0.1 V units |
 | `temperature` | °C | present temperature |
+| `current` | A | present current (0x45), 6.5 mA units |
 
 ## Lifecycle
 
@@ -221,7 +222,7 @@ servo EEPROM angle-limit registers. Commands are rounded to ticks and clamped to
   settings (torque off, EEPROM unlocked, then locked again).
 - `on_activate`: reads current positions, latches commands to them, then enables
   torque on joints with a position command interface.
-- `read`: one sequential 8-byte read per joint at `0x38`.
+- `read`: one sequential 15-byte read per joint at `0x38` (`0x38..0x46`), including load and current.
 - `write`: one SYNC WRITE at `0x2A` for all commanded joints.
 - `on_deactivate`: disables torque.
 

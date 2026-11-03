@@ -30,7 +30,7 @@ namespace feetech_servo_ros2_control {
             joint.parameters["id"] = std::to_string(id);
             for (const char* state_interface :
                  {hardware_interface::HW_IF_POSITION, hardware_interface::HW_IF_VELOCITY, "load", "voltage",
-                  "temperature"}) {
+                  "temperature", "current"}) {
                 hardware_interface::InterfaceInfo info;
                 info.name = state_interface;
                 joint.state_interfaces.push_back(info);
@@ -94,10 +94,11 @@ namespace feetech_servo_ros2_control {
 
             const auto states = hardware.export_state_interfaces();
             const auto commands = hardware.export_command_interfaces();
-            EXPECT_EQ(states.size(), 10U);
+            EXPECT_EQ(states.size(), 12U);
             EXPECT_EQ(commands.size(), 2U);
             EXPECT_EQ(states[0].get_name(), "joint_1/position");
             EXPECT_EQ(states[4].get_name(), "joint_1/temperature");
+            EXPECT_EQ(states[5].get_name(), "joint_1/current");
             EXPECT_EQ(commands[0].get_name(), "joint_1/position");
         }
 
@@ -124,6 +125,7 @@ namespace feetech_servo_ros2_control {
 
             bus_->set_present_speed(1, static_cast<uint16_t>(0x8000U | 100U));
             bus_->set_present_load(1, static_cast<uint16_t>(0x0400U | 500U));
+            bus_->set_present_current(1, 100);
             ASSERT_EQ(hardware.read(rclcpp::Time{}, rclcpp::Duration::from_seconds(0.01)),
                       hardware_interface::return_type::OK);
 
@@ -133,6 +135,7 @@ namespace feetech_servo_ros2_control {
             EXPECT_NEAR(states[2].get_value(), -0.5, 1e-12);
             EXPECT_NEAR(states[3].get_value(), 7.4, 1e-12);
             EXPECT_NEAR(states[4].get_value(), 30.0, 1e-12);
+            EXPECT_NEAR(states[5].get_value(), 0.65, 1e-12);
 
             ASSERT_EQ(hardware.on_deactivate(rclcpp_lifecycle::State()),
                       hardware_interface::CallbackReturn::SUCCESS);
