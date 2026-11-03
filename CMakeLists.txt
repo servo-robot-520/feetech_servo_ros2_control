@@ -34,6 +34,10 @@ target_include_directories(
         $<INSTALL_INTERFACE:include>)
 target_link_libraries(feetech_servo_driver PUBLIC yaml-cpp)
 
+# 读取耗时基准工具：不影响库/插件，不安装。
+add_executable(bench_scs_read tools/bench_scs_read.cpp)
+target_link_libraries(bench_scs_read PRIVATE feetech_servo_driver)
+
 # ros2_control 插件。
 add_library(feetech_servo_ros2_control SHARED src/feetech_servo_hardware_interface.cpp)
 target_include_directories(
