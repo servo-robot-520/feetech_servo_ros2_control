@@ -17,7 +17,7 @@ find_package(pluginlib REQUIRED)
 find_package(common_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-# Core library: POSIX serial transport, SCS protocol codec, YAML joint configuration.
+# 核心库：POSIX 串口传输、SCS 协议编解码、YAML 关节配置。
 add_library(feetech_servo_driver SHARED
   src/scs_serial_port.cpp
   src/scs_protocol.cpp
@@ -27,7 +27,7 @@ target_include_directories(
                               $<INSTALL_INTERFACE:include>)
 target_link_libraries(feetech_servo_driver PUBLIC yaml-cpp)
 
-# ros2_control plugin.
+# ros2_control 插件。
 add_library(feetech_servo_ros2_control SHARED src/feetech_servo_hardware_interface.cpp)
 target_include_directories(
   feetech_servo_ros2_control PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

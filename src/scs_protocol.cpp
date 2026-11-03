@@ -13,6 +13,7 @@ namespace feetech_servo_ros2_control {
         constexpr uint8_t kHeader = 0xFF;
         constexpr int kMaxHeaderBytes = 16;
 
+        /// @brief 生成 “servo <id>” 形式的错误标签。
         std::string servo_label(const uint8_t id) {
             return "servo " + std::to_string(id);
         }
@@ -55,9 +56,8 @@ namespace feetech_servo_ros2_control {
                                    result.error());
         }
 
-        // Synchronise on the FF FF header. Stray bytes may be left over from a
-        // previous timeout, so scan a bounded number of bytes instead of failing on
-        // the first mismatch.
+        // 同步到 FF FF 帧头。上一次超时可能残留字节，因此在有限范围内逐字节
+        // 扫描，而不是在第一次不匹配时直接失败。
         std::array<uint8_t, 2> header{};
         bool header_found = false;
         for (int attempt = 0; attempt < kMaxHeaderBytes; ++attempt) {

@@ -13,10 +13,12 @@
 namespace feetech_servo_ros2_control {
     namespace {
 
+        /// @brief 拼接带 errno 描述的错误信息。
         std::string errno_message(const std::string& what) {
             return what + ": " + std::strerror(errno);
         }
 
+        /// @brief 根据截止时间计算 poll 的等待毫秒数，至少保留 1 ms。
         int poll_timeout_ms(const std::chrono::steady_clock::time_point deadline) {
             const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
                 deadline - std::chrono::steady_clock::now());
@@ -41,6 +43,7 @@ namespace feetech_servo_ros2_control {
             return Result::failure(errno_message("Failed to open '" + device + "'"));
         }
 
+        // 配置为 8N1、无流控、原始模式；使用 BOTHER 以支持任意波特率。
         struct termios2 tty {};
         if (::ioctl(fd, TCGETS2, &tty) != 0) {
             const auto message = errno_message("Failed to read serial settings from '" + device + "'");

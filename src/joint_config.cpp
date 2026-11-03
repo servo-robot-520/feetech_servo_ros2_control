@@ -27,6 +27,7 @@ namespace feetech_servo_ros2_control {
         try {
             const YAML::Node root = YAML::Load(file);
 
+            // 顶层总线参数可覆盖 URDF 中的同名硬件参数。
             if (const YAML::Node usb_port = root["usb_port"]; usb_port) {
                 if (!usb_port.IsScalar() || usb_port.Scalar().empty()) {
                     return Result::failure("joint_config_file '" + file_path +
@@ -43,6 +44,7 @@ namespace feetech_servo_ros2_control {
                 config->baud_rate = baud_rate.Scalar();
             }
 
+            // 关节名仅作标签，驱动按 id 将配置匹配到 URDF 关节。
             const YAML::Node joints = root["joints"];
             if (joints && !joints.IsMap()) {
                 return Result::failure("joint_config_file '" + file_path +

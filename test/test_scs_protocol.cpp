@@ -12,6 +12,7 @@
 namespace feetech_servo_ros2_control {
     namespace {
 
+        /// @brief 用初始化列表构造字节序列，便于与报文比较。
         std::vector<uint8_t> bytes(std::initializer_list<uint8_t> values) {
             return std::vector<uint8_t>(values);
         }
@@ -36,7 +37,7 @@ namespace feetech_servo_ros2_control {
 
         TEST(ScsPacket, ChecksumWrapsAtOneByte) {
             const std::array<uint8_t, 3> params{0xFF, 0xFF, 0xFF};
-            // id + length + instruction + params = 1 + 5 + 3 + 765 = 774 = 0x306, low byte 0x06.
+            // id + length + instruction + params = 1 + 5 + 3 + 765 = 774 = 0x306，取低字节 0x06。
             EXPECT_EQ(packet_checksum(1, 5, 3, params), static_cast<uint8_t>(~0x06));
         }
 

@@ -23,6 +23,7 @@ namespace feetech_servo_ros2_control {
 
         using test::FakeScsBus;
 
+        /// @brief 构造带有全部支持接口的测试关节。
         hardware_interface::ComponentInfo make_joint(const uint8_t id) {
             hardware_interface::ComponentInfo joint;
             joint.name = "joint_" + std::to_string(id);
@@ -40,6 +41,7 @@ namespace feetech_servo_ros2_control {
             return joint;
         }
 
+        /// @brief 构造指向指定串口和舵机 id 的测试硬件信息。
         hardware_interface::HardwareInfo make_hardware_info(const std::string& port,
                                                             const std::vector<uint8_t>& ids) {
             hardware_interface::HardwareInfo info;
@@ -55,6 +57,7 @@ namespace feetech_servo_ros2_control {
             return info;
         }
 
+        /// @brief 按驱动约定计算 tick 对应的弧度，用于校验读数。
         double expected_tick_radians(const uint16_t tick, const double range_deg) {
             return (static_cast<double>(tick) - 511.0) * range_deg * 3.14159265358979323846 / 180.0 / 1024.0;
         }
@@ -110,7 +113,7 @@ namespace feetech_servo_ros2_control {
                       hardware_interface::CallbackReturn::SUCCESS);
             EXPECT_TRUE(bus_->torque_enabled(1));
             EXPECT_TRUE(bus_->torque_enabled(2));
-            // Commands are latched to the measured position on activation.
+            // 激活时命令值会锁存到实测位置。
             EXPECT_NEAR(commands[0].get_value(), 0.0, 1e-9);
 
             commands[0].set_value(3.14159265358979323846 / 2.0);
@@ -139,7 +142,7 @@ namespace feetech_servo_ros2_control {
 
         TEST_F(HardwareInterfaceTest, ClampsCommandToConfiguredAngleRange) {
             auto info = make_hardware_info(bus_->slave_path(), {1});
-            // range_deg = 300: -30 deg -> tick 409, +30 deg -> tick 613.
+            // range_deg = 300：-30 度 -> tick 409，+30 度 -> tick 613。
             info.joints[0].parameters["range_min"] = "-30";
             info.joints[0].parameters["range_max"] = "30";
 
@@ -258,7 +261,7 @@ namespace feetech_servo_ros2_control {
         }
 
         TEST_F(HardwareInterfaceTest, RejectsMissingConfiguredServo) {
-            // The fake bus only provides ids 1 and 2.
+            // 模拟总线只提供 id 1 和 2。
             auto info = make_hardware_info(bus_->slave_path(), {3});
 
             FeetechServoHardwareInterface hardware;

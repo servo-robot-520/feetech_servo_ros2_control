@@ -24,7 +24,10 @@
 
 namespace feetech_servo_ros2_control::test {
 
-    /// Poll a predicate until it becomes true or the timeout elapses.
+    /// @brief 轮询谓词，直到其为真或超时。
+    /// @param predicate 待轮询的条件。
+    /// @param timeout 最长等待时间。
+    /// @return 谓词最终是否为真。
     template <typename Predicate>
     bool wait_for(Predicate predicate, const std::chrono::milliseconds timeout = std::chrono::milliseconds(200)) {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -37,10 +40,10 @@ namespace feetech_servo_ros2_control::test {
         return predicate();
     }
 
-    /// Minimal SCS servo bus simulator on a pseudo-terminal.
+    /// @brief 基于伪终端的极简 SCS 总线模拟器。
     ///
-    /// The driver opens the pty slave; this class answers on the master side,
-    /// implementing PING, READ, WRITE and SYNC WRITE for a set of servo ids.
+    /// 驱动打开 pty 从端，本类在主端应答，实现 PING、READ、WRITE 和 SYNC WRITE，
+    /// 可模拟一组舵机 id。
     class FakeScsBus {
     public:
         explicit FakeScsBus(const std::vector<uint8_t>& ids, const uint16_t model = kModelSc215) {
@@ -112,48 +115,54 @@ namespace feetech_servo_ros2_control::test {
             return slave_path_;
         }
 
+        /// @brief 设置模拟舵机的当前位置。
         void set_present_position(const uint8_t id, const uint16_t ticks) {
             std::lock_guard<std::mutex> lock(mutex_);
             encode_word(&servos_.at(id).registers[kRegisterPresentPosition], ticks);
         }
 
+        /// @brief 读取模拟舵机的当前位置。
         uint16_t present_position(const uint8_t id) const {
             std::lock_guard<std::mutex> lock(mutex_);
             return decode_word(&servos_.at(id).registers[kRegisterPresentPosition]);
         }
 
+        /// @brief 设置模拟舵机的当前速度原始值（符号位 15）。
         void set_present_speed(const uint8_t id, const uint16_t raw) {
             std::lock_guard<std::mutex> lock(mutex_);
             encode_word(&servos_.at(id).registers[kRegisterPresentSpeed], raw);
         }
 
+        /// @brief 设置模拟舵机的当前负载原始值（符号位 10）。
         void set_present_load(const uint8_t id, const uint16_t raw) {
             std::lock_guard<std::mutex> lock(mutex_);
             encode_word(&servos_.at(id).registers[kRegisterPresentLoad], raw);
         }
 
+        /// @brief 查询模拟舵机的扭矩开关状态。
         bool torque_enabled(const uint8_t id) const {
             std::lock_guard<std::mutex> lock(mutex_);
             return servos_.at(id).registers[kRegisterTorqueEnable] == 1;
         }
 
+        /// @brief 读取模拟舵机某个寄存器的原始值。
         uint8_t register_value(const uint8_t id, const uint8_t address) const {
             std::lock_guard<std::mutex> lock(mutex_);
             return servos_.at(id).registers.at(address);
         }
 
-        /// Ignore the next response (used to exercise timeout/resync handling).
+        /// @brief 丢弃下一次应答，用于测试超时与重新同步。
         void drop_next_response() {
             drop_next_response_.store(true);
         }
 
-        /// Bytes prepended to every response, used to exercise header resync.
+        /// @brief 设置每个应答前附加的噪声字节，用于测试帧头重新同步。
         void set_response_prefix(const std::span<const uint8_t> prefix) {
             std::lock_guard<std::mutex> lock(mutex_);
             response_prefix_.assign(prefix.begin(), prefix.end());
         }
 
-        /// Write raw bytes towards the driver (used to inject line noise).
+        /// @brief 直接向驱动侧写入原始字节（用于注入总线噪声）。
         void send_raw(const std::span<const uint8_t> bytes) {
             size_t offset = 0;
             while (offset < bytes.size()) {
@@ -310,8 +319,7 @@ namespace feetech_servo_ros2_control::test {
                     registers[address + i] = data[i];
                 }
             }
-            // Mirror the goal position into the measured position, and report the
-            // commanded speed, so tests observe a deterministic closed loop.
+            // 把目标位置镜像到当前位置，并回显命令速度，使测试得到确定性的闭环结果。
             if (address <= kRegisterGoalPosition &&
                 address + data.size() > kRegisterGoalPosition + 1) {
                 registers[kRegisterPresentPosition] = registers[kRegisterGoalPosition];
@@ -342,7 +350,7 @@ namespace feetech_servo_ros2_control::test {
             packet.push_back(0xFF);
             packet.push_back(id);
             packet.push_back(length);
-            packet.push_back(0); // status
+            packet.push_back(0); // 状态字节
             packet.insert(packet.end(), payload.begin(), payload.end());
             uint8_t sum = static_cast<uint8_t>(id + length + 0);
             for (const auto byte : payload) {

@@ -17,28 +17,40 @@
 
 namespace feetech_servo_ros2_control {
 
-    /// ros2_control SystemInterface for Feetech SCS series bus servos.
+    /// @brief 飞特 SCS 系列总线舵机的 ros2_control SystemInterface。
     ///
-    /// Supported models: SC215 (model 0x0523) and SC225 (model 0x0923).
-    /// One instance owns one serial bus; each joint maps to one servo id.
+    /// 支持的型号：SC215（型号 0x0523）与 SC225（型号 0x0923）。
+    /// 一个实例管理一条串口总线，每个关节对应一个舵机 id。
     class FeetechServoHardwareInterface : public hardware_interface::SystemInterface {
     public:
+        /// @brief 解析硬件与关节参数、打开串口、校验已配置的舵机并写入 EEPROM 配置。
+        /// @param info ros2_control 从 URDF 解析出的硬件信息。
         hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo& info) override;
 
+        /// @brief 导出 URDF 中声明的状态接口。
         std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
+
+        /// @brief 导出 URDF 中声明的命令接口（仅支持 position）。
         std::vector<hardware_interface::CommandInterface> export_command_interfaces() override;
 
+        /// @brief 逐关节顺序读取位置、速度、负载、电压和温度。
         hardware_interface::return_type read(const rclcpp::Time& time,
                                              const rclcpp::Duration& period) override;
+
+        /// @brief 用一次 SYNC WRITE 下发所有被命令关节的目标位置。
         hardware_interface::return_type write(const rclcpp::Time& time,
                                               const rclcpp::Duration& period) override;
 
+        /// @brief 读取当前位置、锁存命令值并使能扭矩。
         hardware_interface::CallbackReturn on_activate(
             const rclcpp_lifecycle::State& previous_state) override;
+
+        /// @brief 关闭所有已使能关节的扭矩。
         hardware_interface::CallbackReturn on_deactivate(
             const rclcpp_lifecycle::State& previous_state) override;
 
     private:
+        /// @brief 单个关节的运行时状态与配置。
         struct Joint {
             std::string name;
             uint8_t id{};
@@ -59,6 +71,7 @@ namespace feetech_servo_ros2_control {
             double command_position{std::numeric_limits<double>::quiet_NaN()};
         };
 
+        /// @brief 硬件级参数。
         struct Options {
             std::string usb_port;
             int baud_rate{1000000};
@@ -68,9 +81,16 @@ namespace feetech_servo_ros2_control {
             bool strict_model_check{false};
         };
 
+        /// @brief 解析 URDF 与配置文件中的硬件级参数。
         hardware_interface::CallbackReturn parse_options();
+
+        /// @brief 按舵机 id 合并 URDF/YAML 参数并校验关节配置。
         hardware_interface::CallbackReturn build_joints();
+
+        /// @brief 把关节的 EEPROM 参数写入舵机，仅在寄存器值不一致时更新。
         Result configure_joint(const Joint& joint);
+
+        /// @brief 校验所有已配置舵机在线，并打印版本与配置信息。
         Result verify_servos();
 
         Options options_;

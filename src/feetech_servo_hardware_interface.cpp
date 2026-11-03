@@ -26,6 +26,12 @@
 namespace feetech_servo_ros2_control {
     namespace {
 
+        /// @brief 解析整数并校验取值范围。
+        /// @param label 参数名称，用于错误信息。
+        /// @param text 待解析的字符串。
+        /// @param min 允许的最小值。
+        /// @param max 允许的最大值。
+        /// @param out 解析结果。
         Result parse_integer(const std::string& label, const std::string& text, const int min,
                              const int max, int* const out) {
             try {
@@ -46,6 +52,12 @@ namespace feetech_servo_ros2_control {
             }
         }
 
+        /// @brief 解析浮点数并校验取值范围。
+        /// @param label 参数名称，用于错误信息。
+        /// @param text 待解析的字符串。
+        /// @param min 允许的最小值。
+        /// @param max 允许的最大值。
+        /// @param out 解析结果。
         Result parse_real(const std::string& label, const std::string& text, const double min,
                           const double max, double* const out) {
             try {
@@ -66,6 +78,10 @@ namespace feetech_servo_ros2_control {
             }
         }
 
+        /// @brief 解析布尔值（true/false、True/False、1/0）。
+        /// @param label 参数名称，用于错误信息。
+        /// @param text 待解析的字符串。
+        /// @param out 解析结果。
         Result parse_boolean(const std::string& label, const std::string& text, bool* const out) {
             if (text == "true" || text == "True" || text == "1") {
                 *out = true;
@@ -78,12 +94,14 @@ namespace feetech_servo_ros2_control {
             return Result::failure(label + ": expected 'true' or 'false', got '" + text + "'");
         }
 
+        /// @brief 将 16 位值格式化为 0xXXXX 字符串。
         std::string hex_word(const uint16_t value) {
             char buffer[8]{};
             std::snprintf(buffer, sizeof(buffer), "0x%04X", static_cast<unsigned>(value));
             return buffer;
         }
 
+        /// @brief 支持的状态接口名称集合。
         const std::set<std::string>& supported_state_interfaces() {
             static const std::set<std::string> kSupported{"position", "velocity", "load", "voltage",
                                                           "temperature"};
@@ -99,8 +117,8 @@ namespace feetech_servo_ros2_control {
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        // Process-wide log backend shared by all common_cpp users. The default
-        // logger/node name can be overridden with the `log.*` hardware parameters.
+        // 进程级日志后端，由所有 common_cpp 使用方共享；默认 logger/node 名可被
+        // `log.*` 硬件参数覆盖。
         auto logging_parameters = info_.hardware_parameters;
         logging_parameters.try_emplace("log.logger_name", "feetech_servo_ros2_control");
         logging_parameters.try_emplace("log.node_name", "feetech_servo_ros2_control");
@@ -172,8 +190,7 @@ namespace feetech_servo_ros2_control {
 
         const auto& parameters = info_.hardware_parameters;
 
-        // The serial device may come from the URDF or the joint config file; the
-        // config file wins when both are present.
+        // 串口设备可以来自 URDF 或关节配置文件；两者都存在时以配置文件为准。
         std::string usb_port;
         if (const auto it = parameters.find("usb_port"); it != parameters.end()) {
             usb_port = it->second;
@@ -188,7 +205,7 @@ namespace feetech_servo_ros2_control {
         }
         options_.usb_port = usb_port;
 
-        int baud_rate = options_.baud_rate; // 1 Mbaud by default
+        int baud_rate = options_.baud_rate; // 默认 1 Mbaud
         if (const auto it = parameters.find("baud_rate"); it != parameters.end()) {
             if (const auto result = parse_integer("baud_rate", it->second, 1, 4000000, &baud_rate);
                 !result) {
@@ -451,8 +468,7 @@ namespace feetech_servo_ros2_control {
             int max;
         };
 
-        // Validate every configured value before touching the servo, so a typo
-        // cannot leave a servo half-configured.
+        // 先校验全部配置值，再操作舵机，避免参数错误导致舵机配置到一半。
         std::vector<ByteSetting> byte_settings;
         const std::array<ByteParameter, 13> byte_parameters{{
             {"return_delay_time", kRegisterReturnDelay, 0, 254},
@@ -515,8 +531,7 @@ namespace feetech_servo_ros2_control {
             word_settings.push_back({parameter.name, parameter.address, static_cast<uint16_t>(value)});
         }
 
-        // Angle limits are configured in degrees (relative to center) and
-        // stored in the servo as ticks.
+        // 角度限制以度为单位（相对中位），写入舵机时换算为 tick。
         if (joint.eeprom_min_tick) {
             word_settings.push_back({"range_min", kRegisterMinAngleLimit, *joint.eeprom_min_tick});
         }
@@ -683,8 +698,7 @@ namespace feetech_servo_ros2_control {
             return hardware_interface::CallbackReturn::ERROR;
         }
 
-        // Latch command values to the measured positions before enabling torque,
-        // so the servos do not jump to a stale command on activation.
+        // 使能扭矩前先把命令值锁存到实测位置，避免激活时跳到陈旧目标。
         for (auto& joint : joints_) {
             if (joint.has_position_command) {
                 joint.command_position = joint.state_position;
