@@ -100,8 +100,10 @@ if (BUILD_TESTING)
     target_include_directories(test_hardware_interface PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/test)
     target_link_libraries(test_hardware_interface feetech_servo_ros2_control)
 
-    ament_add_gtest(test_plugin_loading test/test_plugin_loading.cpp)
-    target_link_libraries(test_plugin_loading feetech_servo_ros2_control
+    # 聚合构建中所有包共享同一个 CMake target 命名空间；使用包名前缀避免与
+    # mpu6500_ros2_control 的同名测试 target 冲突。
+    ament_add_gtest(test_feetech_plugin_loading test/test_plugin_loading.cpp)
+    target_link_libraries(test_feetech_plugin_loading feetech_servo_ros2_control
             pluginlib::pluginlib)
 endif ()
 
