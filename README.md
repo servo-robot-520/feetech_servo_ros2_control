@@ -71,26 +71,25 @@ Only the `position` command interface is supported.
 | `range_deg` | `300` | Mechanical travel of the servo across 0..1023 ticks. Per-joint `range_deg` overrides it. |
 | `default_speed` | `1000` | Command speed in ticks/s when a joint does not set `speed`. |
 | `strict_model_check` | `false` | Reject servos whose model is not SC215/SC225. |
-| `scan_servos` | `true` | Ping every id 0..253 on startup and log firmware/servo versions and baud rate. |
 
 The serial device and baud rate may also be provided by the joint config file
 (top-level `usb_port` / `baud_rate`); the config file takes precedence over the
 URDF parameters.
 
-### Startup bus scan
+### Startup verification
 
-With `scan_servos` enabled (default), `on_init` pings every servo id from 0 to
-253 and reads addresses 0..7 of each responder. One line is logged per servo:
+`on_init` only contacts the servo ids configured in the URDF / joint config file;
+there is no full-bus scan. For each configured joint it:
 
-```
-scan: id=8 firmware=3.24 servo=9.35 model=SC225 baud=1000000 bps (code 0)
-scan: 1 servo(s) responded
-```
+1. pings the id and aborts initialization with an error log if the servo does not
+   answer;
+2. reads and prints the firmware major/minor version (registers 0/1), the servo
+   major/minor version (registers 3/4) and the model derived from them;
+3. prints every configured parameter for the joint;
+4. compares each register-backed parameter with the servo value and logs
+   `current=... configured=... -> update` before writing a different value.
 
-`firmware` is the firmware major/minor version (registers 0/1), `servo` is the
-servo major/minor version (registers 3/4), and `baud` is decoded from register 6.
-Scanning costs one `response_timeout_ms` per absent id; set `scan_servos` to
-`false` for a faster start on large buses.
+The configured baud rate is the one used on the bus, so no baud rate is printed.
 
 ### Logging
 

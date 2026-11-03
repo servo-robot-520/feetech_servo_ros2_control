@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -142,9 +143,12 @@ namespace feetech_servo_ros2_control {
         protocol_ = std::make_unique<ScsProtocol>(
             *serial_port_, std::chrono::milliseconds(options_.response_timeout_ms));
 
-        scan_bus();
+        LOG_INFO("hardware: usb_port={} baud_rate={} response_timeout_ms={} range_deg={} default_speed={} "
+                 "strict_model_check={}",
+                 options_.usb_port, options_.baud_rate, options_.response_timeout_ms, options_.range_deg,
+                 options_.default_speed, options_.strict_model_check);
 
-        if (const auto result = check_models(); !result) {
+        if (const auto result = verify_servos(); !result) {
             return fail(result.error());
         }
 
@@ -231,14 +235,6 @@ namespace feetech_servo_ros2_control {
                 return fail(result.error());
             }
             options_.strict_model_check = value;
-        }
-
-        if (const auto it = parameters.find("scan_servos"); it != parameters.end()) {
-            bool value = false;
-            if (const auto result = parse_boolean("scan_servos", it->second, &value); !result) {
-                return fail(result.error());
-            }
-            options_.scan_servos = value;
         }
 
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -386,26 +382,47 @@ namespace feetech_servo_ros2_control {
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
-    Result FeetechServoHardwareInterface::check_models() {
+    Result FeetechServoHardwareInterface::verify_servos() {
         for (const auto& joint : joints_) {
-            const auto model = protocol_->read_model(joint.id);
-            if (!model) {
-                return Result::failure("Reading model of servo id " + std::to_string(joint.id) +
-                                       " failed: " + model.error());
+            if (const auto result = protocol_->ping(joint.id); !result) {
+                return Result::failure("Configured servo id " + std::to_string(joint.id) + " (joint '" +
+                                       joint.name + "') is not responding, aborting startup: " + result.error());
             }
-            if (is_supported_model(model.value())) {
-                LOG_INFO("Joint '{}' (id={}): {} (model {})", joint.name, static_cast<unsigned>(joint.id),
-                         model_name(model.value()), hex_word(model.value()));
+
+            std::array<uint8_t, 8> identity{};
+            if (const auto result = protocol_->read_registers(joint.id, kRegisterFirmwareMajor, identity); !result) {
+                return Result::failure("Configured servo id " + std::to_string(joint.id) + " (joint '" +
+                                       joint.name + "'): reading identity failed, aborting startup: " +
+                                       result.error());
             }
-            else {
-                LOG_WARN("Joint '{}' (id={}): unsupported model {}", joint.name,
-                         static_cast<unsigned>(joint.id), hex_word(model.value()));
+
+            const auto model = static_cast<uint16_t>((identity[kRegisterServoMajor] << 8) |
+                                                     identity[kRegisterServoMinor]);
+            LOG_INFO("servo id={} ({}): firmware={}.{} servo={}.{} model={}", static_cast<unsigned>(joint.id),
+                     joint.name, identity[kRegisterFirmwareMajor], identity[kRegisterFirmwareMinor],
+                     identity[kRegisterServoMajor], identity[kRegisterServoMinor], model_name(model));
+
+            if (!is_supported_model(model)) {
+                LOG_WARN("servo id={} ({}): unsupported model {}", static_cast<unsigned>(joint.id), joint.name,
+                         hex_word(model));
                 if (options_.strict_model_check) {
-                    return Result::failure("Joint '" + joint.name + "': model " + hex_word(model.value()) +
+                    return Result::failure("Joint '" + joint.name + "': model " + hex_word(model) +
                                            " is not SC215/SC225");
                 }
             }
+
+            std::map<std::string, std::string> sorted_params(joint.params.begin(), joint.params.end());
+            std::string config_text;
+            for (const auto& [key, value] : sorted_params) {
+                if (!config_text.empty()) {
+                    config_text += " ";
+                }
+                config_text += key + "=" + value;
+            }
+            LOG_INFO("servo id={} ({}): config: {}", static_cast<unsigned>(joint.id), joint.name, config_text);
         }
+
+        LOG_INFO("verified {} configured servo(s)", joints_.size());
         return Result::success();
     }
 
@@ -529,7 +546,8 @@ namespace feetech_servo_ros2_control {
                 return Result::failure(std::string("Writing '") + setting.name + "' failed: " +
                                        result.error());
             }
-            LOG_INFO("Joint '{}' (id={}): {} = {}", joint.name, static_cast<unsigned>(id), setting.name,
+            LOG_INFO("servo id={} ({}): {}: current={} configured={} -> update", static_cast<unsigned>(id),
+                     joint.name, setting.name, static_cast<unsigned>(current[0]),
                      static_cast<unsigned>(setting.value));
         }
 
@@ -548,43 +566,14 @@ namespace feetech_servo_ros2_control {
                 return Result::failure(std::string("Writing '") + setting.name + "' failed: " +
                                        result.error());
             }
-            LOG_INFO("Joint '{}' (id={}): {} = {}", joint.name, static_cast<unsigned>(id), setting.name,
-                     static_cast<unsigned>(setting.value));
+            const bool angle_limit = std::string(setting.name) == "range_min" ||
+                std::string(setting.name) == "range_max";
+            LOG_INFO("servo id={} ({}): {}: current={}{} configured={}{} -> update", static_cast<unsigned>(id),
+                     joint.name, setting.name, decode_word(current.data()), angle_limit ? " ticks" : "",
+                     static_cast<unsigned>(setting.value), angle_limit ? " ticks" : "");
         }
 
         return protocol_->set_eeprom_locked(id, true);
-    }
-
-    void FeetechServoHardwareInterface::scan_bus() {
-        if (!options_.scan_servos) {
-            LOG_INFO("scan: disabled (scan_servos=false)");
-            return;
-        }
-
-        std::array<uint8_t, 8> identity{};
-        int found = 0;
-        for (int id = 0; id <= static_cast<int>(kMaxServoId); ++id) {
-            if (!protocol_->ping(static_cast<uint8_t>(id))) {
-                continue;
-            }
-            ++found;
-            if (const auto result = protocol_->read_registers(static_cast<uint8_t>(id), kRegisterFirmwareMajor,
-                                                              identity);
-                !result) {
-                LOG_WARN("scan: id={} responded but identity read failed: {}", id, result.error());
-                continue;
-            }
-
-            const auto model = static_cast<uint16_t>((identity[kRegisterServoMajor] << 8) |
-                                                     identity[kRegisterServoMinor]);
-            const int baud_rate = baud_rate_from_code(identity[kRegisterBaudRate]);
-            const std::string baud_text = baud_rate > 0 ? std::to_string(baud_rate) : "unknown";
-            LOG_INFO("scan: id={} firmware={}.{} servo={}.{} model={} baud={} bps (code {})", id,
-                     identity[kRegisterFirmwareMajor], identity[kRegisterFirmwareMinor],
-                     identity[kRegisterServoMajor], identity[kRegisterServoMinor], model_name(model),
-                     baud_text, identity[kRegisterBaudRate]);
-        }
-        LOG_INFO("scan: {} servo(s) responded", found);
     }
 
     std::vector<hardware_interface::StateInterface>

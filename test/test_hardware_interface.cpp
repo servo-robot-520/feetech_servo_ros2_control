@@ -49,7 +49,6 @@ namespace feetech_servo_ros2_control {
             info.hardware_parameters["usb_port"] = port;
             info.hardware_parameters["baud_rate"] = "1000000";
             info.hardware_parameters["range_deg"] = "300";
-            info.hardware_parameters["scan_servos"] = "false";
             for (const auto id : ids) {
                 info.joints.push_back(make_joint(id));
             }
@@ -258,13 +257,12 @@ namespace feetech_servo_ros2_control {
             EXPECT_EQ(bus_->register_value(1, kRegisterMaxInputVoltage), 90);
         }
 
-        TEST_F(HardwareInterfaceTest, ScansBusOnStartup) {
-            auto info = make_hardware_info(bus_->slave_path(), {1});
-            info.hardware_parameters["scan_servos"] = "true";
-            info.hardware_parameters["response_timeout_ms"] = "2";
+        TEST_F(HardwareInterfaceTest, RejectsMissingConfiguredServo) {
+            // The fake bus only provides ids 1 and 2.
+            auto info = make_hardware_info(bus_->slave_path(), {3});
 
             FeetechServoHardwareInterface hardware;
-            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::SUCCESS);
+            EXPECT_EQ(hardware.on_init(info), hardware_interface::CallbackReturn::ERROR);
         }
 
         TEST_F(HardwareInterfaceTest, RejectsUnsupportedCommandInterface) {

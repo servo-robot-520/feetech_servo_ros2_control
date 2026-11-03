@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <string_view>
@@ -68,14 +67,6 @@ namespace feetech_servo_ros2_control {
 
     inline constexpr uint8_t kSpeedSignBit = 15;
     inline constexpr uint8_t kLoadSignBit = 10;
-
-    /// Baud rate code stored in kRegisterBaudRate (factory code 0 = 1 Mbaud).
-    inline constexpr std::array<int, 8> kBaudRatesByCode{1000000, 500000, 250000, 128000,
-                                                         115200, 76800, 57600, 38400};
-
-    inline int baud_rate_from_code(const uint8_t code) {
-        return code < kBaudRatesByCode.size() ? kBaudRatesByCode[code] : 0;
-    }
 
     // Model identifier reported at kRegisterModel. SCS registers are high byte
     // first, so SC215 (major 5, minor 35) reads as 0x0523 and SC225

@@ -69,24 +69,21 @@ sudo usermod -aG dialout "$USER"
 | `range_deg` | `300` | 舵机在 0..1023 tick 范围内的机械行程。关节级 `range_deg` 可覆盖。 |
 | `default_speed` | `1000` | 关节未设置 `speed` 时的命令速度，单位 tick/s。 |
 | `strict_model_check` | `false` | 拒绝型号不是 SC215/SC225 的舵机。 |
-| `scan_servos` | `true` | 启动时 ping 0..253 的所有 id，并打印固件/舵机版本与波特率。 |
 
 串口设备与波特率也可以通过关节配置文件提供（顶层 `usb_port` / `baud_rate`）；
 配置文件优先于 URDF 参数。
 
-### 启动总线扫描
+### 启动校验
 
-启用 `scan_servos`（默认）时，`on_init` 会 ping 0 到 253 的所有舵机 id，并读取
-每个应答者的 0..7 地址。每个舵机打印一行：
+`on_init` 只访问 URDF / 关节配置文件中定义的舵机 id，不再扫描整条总线。对每个已配置
+关节：
 
-```
-scan: id=8 firmware=3.24 servo=9.35 model=SC225 baud=1000000 bps (code 0)
-scan: 1 servo(s) responded
-```
+1. ping 该 id；舵机无应答时输出错误日志并中止启动；
+2. 读取并打印固件主/次版本（寄存器 0/1）、舵机主/次版本（寄存器 3/4）及其推导出的型号；
+3. 打印该关节配置的全部参数；
+4. 逐项读取寄存器当前值，不一致时打印 `current=... configured=... -> update` 并写入新值。
 
-`firmware` 为固件主/次版本（寄存器 0/1），`servo` 为舵机主/次版本（寄存器 3/4），
-`baud` 由寄存器 6 解码。每个不存在的 id 会消耗一次 `response_timeout_ms`；总线较大时可
-把 `scan_servos` 设为 `false` 加快启动。
+总线使用配置文件中设置的波特率，因此不再打印波特率。
 
 ### 日志
 
