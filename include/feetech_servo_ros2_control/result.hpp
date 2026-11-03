@@ -25,7 +25,7 @@ namespace feetech_servo_ros2_control {
         }
 
         /// @brief 是否成功。
-        bool has_value() const {
+        [[nodiscard]] bool has_value() const {
             return ok_;
         }
 
@@ -35,7 +35,7 @@ namespace feetech_servo_ros2_control {
         }
 
         /// @brief 获取错误信息；成功时为空字符串。
-        const std::string& error() const {
+        [[nodiscard]] const std::string& error() const {
             return message_;
         }
 
@@ -63,7 +63,7 @@ namespace feetech_servo_ros2_control {
         }
 
         /// @brief 是否持有有效值。
-        bool has_value() const {
+        [[nodiscard]] bool has_value() const {
             return has_value_;
         }
 
@@ -78,7 +78,7 @@ namespace feetech_servo_ros2_control {
         }
 
         /// @brief 获取错误信息；成功时为空字符串。
-        const std::string& error() const {
+        [[nodiscard]] const std::string& error() const {
             return message_;
         }
 

@@ -1,10 +1,10 @@
 #include "feetech_servo_ros2_control/scs_serial_port.hpp"
 
-#include <asm/termbits.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
+#include <asm/termbits.h>
+#include <sys/ioctl.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -86,7 +86,7 @@ namespace feetech_servo_ros2_control {
         }
     }
 
-    Result ScsSerialPort::write(const std::span<const uint8_t> data) {
+    Result ScsSerialPort::write(const std::span<const uint8_t> data) const {
         if (!is_open()) {
             return Result::failure("Serial port is not open");
         }
@@ -103,9 +103,8 @@ namespace feetech_servo_ros2_control {
                 continue;
             }
             if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                pollfd descriptor{fd_, POLLOUT, 0};
-                const int ready = ::poll(&descriptor, 1, poll_timeout_ms(deadline));
-                if (ready < 0 && errno != EINTR) {
+                pollfd descriptor{.fd = fd_, .events = POLLOUT, .revents = 0};
+                if (const int ready = ::poll(&descriptor, 1, poll_timeout_ms(deadline)); ready < 0 && errno != EINTR) {
                     return Result::failure(errno_message("Failed to wait for serial port"));
                 }
                 if (std::chrono::steady_clock::now() >= deadline) {
@@ -119,7 +118,7 @@ namespace feetech_servo_ros2_control {
     }
 
     Result ScsSerialPort::read_exact(const std::span<uint8_t> data,
-                                     const std::chrono::milliseconds timeout) {
+                                     const std::chrono::milliseconds timeout) const {
         if (!is_open()) {
             return Result::failure("Serial port is not open");
         }
@@ -132,7 +131,7 @@ namespace feetech_servo_ros2_control {
                                        " byte(s)");
             }
 
-            pollfd descriptor{fd_, POLLIN, 0};
+            pollfd descriptor{.fd = fd_, .events = POLLIN, .revents = 0};
             const int ready = ::poll(&descriptor, 1, poll_timeout_ms(deadline));
             if (ready < 0) {
                 if (errno == EINTR) {
@@ -159,7 +158,7 @@ namespace feetech_servo_ros2_control {
         return Result::success();
     }
 
-    void ScsSerialPort::flush_input() {
+    void ScsSerialPort::flush_input() const {
         if (is_open()) {
             ::ioctl(fd_, TCFLSH, TCIFLUSH);
         }

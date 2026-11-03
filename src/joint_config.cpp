@@ -14,8 +14,7 @@ namespace feetech_servo_ros2_control {
         }
         *config = JointConfigFile{};
 
-        std::error_code error;
-        if (!std::filesystem::exists(file_path, error)) {
+        if (std::error_code error; !std::filesystem::exists(file_path, error)) {
             return Result::failure("joint_config_file '" + file_path + "' does not exist");
         }
 
@@ -52,7 +51,7 @@ namespace feetech_servo_ros2_control {
             }
 
             for (auto it = joints.begin(); it != joints.end(); ++it) {
-                const std::string joint_name = it->first.as<std::string>();
+                const auto joint_name = it->first.as<std::string>();
                 const YAML::Node joint_node = it->second;
                 if (!joint_node.IsMap()) {
                     return Result::failure("joint_config_file '" + file_path + "': joint '" + joint_name +
@@ -61,7 +60,7 @@ namespace feetech_servo_ros2_control {
 
                 JointParams params;
                 for (auto param = joint_node.begin(); param != joint_node.end(); ++param) {
-                    const std::string key = param->first.as<std::string>();
+                    const auto key = param->first.as<std::string>();
                     if (!param->second.IsScalar()) {
                         return Result::failure("joint_config_file '" + file_path + "': parameter '" + key +
                                                "' of joint '" + joint_name + "' is not a scalar");

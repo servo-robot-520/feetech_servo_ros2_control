@@ -117,7 +117,7 @@ namespace feetech_servo_ros2_control {
         hardware_interface::CallbackReturn build_joints();
 
         /// @brief 解析并校验关节 EEPROM 参数，生成待写入的寄存器列表。
-        Result build_register_settings(Joint& joint);
+        static Result build_register_settings(Joint& joint);
 
         /// @brief 把关节的 EEPROM 参数写入舵机，仅在寄存器值不一致时更新。
         Result configure_joint(const Joint& joint) const;

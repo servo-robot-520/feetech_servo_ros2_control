@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <string_view>
 
 namespace feetech_servo_ros2_control {

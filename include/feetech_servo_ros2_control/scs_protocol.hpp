@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -37,19 +36,19 @@ namespace feetech_servo_ros2_control {
         ScsProtocol(ScsSerialPort& port, std::chrono::milliseconds response_timeout);
 
         /// @brief 发送 PING 并等待应答，用于检测舵机是否在线。
-        Result ping(uint8_t id);
+        Result ping(uint8_t id) const;
 
         /// @brief 从指定地址连续读取寄存器。
         /// @param id 舵机 id。
         /// @param address 寄存器起始地址。
         /// @param data 接收缓冲区，长度即要读取的字节数。
-        Result read_registers(uint8_t id, uint8_t address, std::span<uint8_t> data);
+        Result read_registers(uint8_t id, uint8_t address, std::span<uint8_t> data) const;
 
         /// @brief 向指定地址连续写入寄存器，并等待应答。
         /// @param id 舵机 id。
         /// @param address 寄存器起始地址。
         /// @param data 待写入的数据。
-        Result write_registers(uint8_t id, uint8_t address, std::span<const uint8_t> data);
+        Result write_registers(uint8_t id, uint8_t address, std::span<const uint8_t> data) const;
 
         /// @brief 向单个舵机写入目标位置、运行时间和速度。
         /// @param id 舵机 id。
@@ -57,7 +56,7 @@ namespace feetech_servo_ros2_control {
         /// @param time_ms 运行时间，单位 ms；为 0 时由速度决定。
         /// @param speed 运行速度，单位 tick/s。
         Result write_goal_position(uint8_t id, uint16_t position, uint16_t time_ms,
-                                   uint16_t speed);
+                                   uint16_t speed) const;
 
         /// @brief 广播一次 SYNC WRITE，同时下发所有舵机的目标位置（地址 0x2A），
         ///        包含位置、时间和速度。
@@ -67,19 +66,19 @@ namespace feetech_servo_ros2_control {
         /// @param speeds 运行速度列表，单位 tick/s。
         Result sync_write_goal_positions(std::span<const uint8_t> ids,
                                          std::span<const uint16_t> positions, uint16_t time_ms,
-                                         std::span<const uint16_t> speeds);
+                                         std::span<const uint16_t> speeds) const;
 
         /// @brief 使能或关闭扭矩输出。
-        Result set_torque_enabled(uint8_t id, bool enabled);
+        Result set_torque_enabled(uint8_t id, bool enabled) const;
 
         /// @brief 锁定或解锁 EEPROM；解锁后才能修改 EEPROM 参数。
-        Result set_eeprom_locked(uint8_t id, bool locked);
+        Result set_eeprom_locked(uint8_t id, bool locked) const;
 
         /// @brief 读取高字节在前的 16 位寄存器。
-        Expected<uint16_t> read_word(uint8_t id, uint8_t address);
+        Expected<uint16_t> read_word(uint8_t id, uint8_t address) const;
 
         /// @brief 读取 kRegisterModel 上的 16 位型号/版本标识。
-        Expected<uint16_t> read_model(uint8_t id);
+        Expected<uint16_t> read_model(uint8_t id) const;
 
     private:
         /// @brief 发送指令并校验应答的帧头、长度、校验和与状态字节。
@@ -87,7 +86,7 @@ namespace feetech_servo_ros2_control {
         /// @param expected_id 期望应答的舵机 id。
         /// @param payload 应答数据缓冲区。
         Result transact(const std::vector<uint8_t>& packet, uint8_t expected_id,
-                        std::span<uint8_t> payload);
+                        std::span<uint8_t> payload) const;
 
         ScsSerialPort& port_;
         std::chrono::milliseconds response_timeout_;

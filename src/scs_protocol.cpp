@@ -1,6 +1,5 @@
 #include "feetech_servo_ros2_control/scs_protocol.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <string>
@@ -22,7 +21,7 @@ namespace feetech_servo_ros2_control {
 
     uint8_t packet_checksum(const uint8_t id, const uint8_t length, const uint8_t instruction,
                             const std::span<const uint8_t> params) {
-        uint8_t sum = static_cast<uint8_t>(id + length + instruction);
+        auto sum = static_cast<uint8_t>(id + length + instruction);
         for (const auto byte : params) {
             sum = static_cast<uint8_t>(sum + byte);
         }
@@ -49,11 +48,11 @@ namespace feetech_servo_ros2_control {
     }
 
     Result ScsProtocol::transact(const std::vector<uint8_t>& packet, const uint8_t expected_id,
-                                 const std::span<uint8_t> payload) {
+                                 const std::span<uint8_t> payload) const {
         port_.flush_input();
-        if (auto result = port_.write(packet); !result) {
+        if (const auto result = port_.write(packet); !result) {
             return Result::failure("Failed to send command to " + servo_label(expected_id) + ": " +
-                                   result.error());
+                result.error());
         }
 
         // 同步到 FF FF 帧头。上一次超时可能残留字节，因此在有限范围内逐字节
@@ -62,16 +61,16 @@ namespace feetech_servo_ros2_control {
         bool header_found = false;
         for (int attempt = 0; attempt < kMaxHeaderBytes; ++attempt) {
             if (attempt == 0) {
-                if (auto result = port_.read_exact(header, response_timeout_); !result) {
+                if (const auto result = port_.read_exact(header, response_timeout_); !result) {
                     return Result::failure("No response from " + servo_label(expected_id) + ": " +
-                                           result.error());
+                        result.error());
                 }
             }
             else {
                 std::array<uint8_t, 1> next{};
-                if (auto result = port_.read_exact(next, response_timeout_); !result) {
+                if (const auto result = port_.read_exact(next, response_timeout_); !result) {
                     return Result::failure("Incomplete response from " + servo_label(expected_id) + ": " +
-                                           result.error());
+                        result.error());
                 }
                 header[0] = header[1];
                 header[1] = next[0];
@@ -86,25 +85,25 @@ namespace feetech_servo_ros2_control {
         }
 
         std::array<uint8_t, 2> id_and_length{};
-        if (auto result = port_.read_exact(id_and_length, response_timeout_); !result) {
+        if (const auto result = port_.read_exact(id_and_length, response_timeout_); !result) {
             return Result::failure("Incomplete response from " + servo_label(expected_id) + ": " +
-                                   result.error());
+                result.error());
         }
 
         const uint8_t id = id_and_length[0];
         const uint8_t length = id_and_length[1];
         if (length < 2) {
             return Result::failure("Invalid response length " + std::to_string(length) + " from " +
-                                   servo_label(expected_id));
+                servo_label(expected_id));
         }
 
         std::vector<uint8_t> body(length);
-        if (auto result = port_.read_exact(body, response_timeout_); !result) {
+        if (const auto result = port_.read_exact(body, response_timeout_); !result) {
             return Result::failure("Incomplete response from " + servo_label(expected_id) + ": " +
-                                   result.error());
+                result.error());
         }
 
-        uint8_t sum = static_cast<uint8_t>(id + length);
+        auto sum = static_cast<uint8_t>(id + length);
         for (size_t i = 0; i + 1 < body.size(); ++i) {
             sum = static_cast<uint8_t>(sum + body[i]);
         }
@@ -113,21 +112,19 @@ namespace feetech_servo_ros2_control {
         }
         if (id != expected_id) {
             return Result::failure("Expected response from " + servo_label(expected_id) + ", got " +
-                                   servo_label(id));
+                servo_label(id));
         }
 
-        const auto response_payload_size = static_cast<size_t>(length) - 2;
-        if (response_payload_size != payload.size()) {
+        if (const auto response_payload_size = static_cast<size_t>(length) - 2; response_payload_size != payload.size()) {
             return Result::failure("Unexpected payload size " + std::to_string(response_payload_size) +
-                                   " from " + servo_label(expected_id) + " (expected " +
-                                   std::to_string(payload.size()) + ")");
+                " from " + servo_label(expected_id) + " (expected " +
+                std::to_string(payload.size()) + ")");
         }
         for (size_t i = 0; i < payload.size(); ++i) {
             payload[i] = body[i + 1];
         }
 
-        const uint8_t status = body[0];
-        if (status != 0) {
+        if (const uint8_t status = body[0]; status != 0) {
             char buffer[8]{};
             std::snprintf(buffer, sizeof(buffer), "0x%02X", static_cast<unsigned>(status));
             return Result::failure(servo_label(expected_id) + " reported status " + buffer);
@@ -135,13 +132,13 @@ namespace feetech_servo_ros2_control {
         return Result::success();
     }
 
-    Result ScsProtocol::ping(const uint8_t id) {
+    Result ScsProtocol::ping(const uint8_t id) const {
         return transact(make_packet(id, kInstructionPing, std::span<const uint8_t>{}), id,
                         std::span<uint8_t>{});
     }
 
     Result ScsProtocol::read_registers(const uint8_t id, const uint8_t address,
-                                       const std::span<uint8_t> data) {
+                                       const std::span<uint8_t> data) const {
         if (data.empty() || data.size() > 250) {
             return Result::failure("Invalid register read length " + std::to_string(data.size()));
         }
@@ -150,7 +147,7 @@ namespace feetech_servo_ros2_control {
     }
 
     Result ScsProtocol::write_registers(const uint8_t id, const uint8_t address,
-                                        const std::span<const uint8_t> data) {
+                                        const std::span<const uint8_t> data) const {
         if (data.empty() || data.size() > 250) {
             return Result::failure("Invalid register write length " + std::to_string(data.size()));
         }
@@ -162,7 +159,7 @@ namespace feetech_servo_ros2_control {
     }
 
     Result ScsProtocol::write_goal_position(const uint8_t id, const uint16_t position,
-                                            const uint16_t time_ms, const uint16_t speed) {
+                                            const uint16_t time_ms, const uint16_t speed) const {
         std::array<uint8_t, 7> params{};
         params[0] = kRegisterGoalPosition;
         encode_word(params.data() + 1, position);
@@ -174,7 +171,7 @@ namespace feetech_servo_ros2_control {
     Result ScsProtocol::sync_write_goal_positions(const std::span<const uint8_t> ids,
                                                   const std::span<const uint16_t> positions,
                                                   const uint16_t time_ms,
-                                                  const std::span<const uint16_t> speeds) {
+                                                  const std::span<const uint16_t> speeds) const {
         if (ids.empty()) {
             return Result::success();
         }
@@ -183,10 +180,8 @@ namespace feetech_servo_ros2_control {
         }
 
         constexpr size_t kDataLength = 6;
-        const size_t length = 4 + (kDataLength + 1) * ids.size();
-        if (length > 255) {
-            return Result::failure("Too many servos for one SYNC WRITE (" + std::to_string(ids.size()) +
-                                   ")");
+        if (const size_t length = 4 + (kDataLength + 1) * ids.size(); length > 255) {
+            return Result::failure("Too many servos for one SYNC WRITE (" + std::to_string(ids.size()) + ")");
         }
 
         std::vector<uint8_t> params;
@@ -203,32 +198,32 @@ namespace feetech_servo_ros2_control {
         }
 
         port_.flush_input();
-        if (auto result = port_.write(make_packet(kBroadcastId, kInstructionSyncWrite, params));
+        if (const auto result = port_.write(make_packet(kBroadcastId, kInstructionSyncWrite, params));
             !result) {
             return Result::failure("Failed to send SYNC WRITE: " + result.error());
         }
         return Result::success();
     }
 
-    Result ScsProtocol::set_torque_enabled(const uint8_t id, const bool enabled) {
+    Result ScsProtocol::set_torque_enabled(const uint8_t id, const bool enabled) const {
         const std::array<uint8_t, 1> value{static_cast<uint8_t>(enabled ? 1 : 0)};
         return write_registers(id, kRegisterTorqueEnable, value);
     }
 
-    Result ScsProtocol::set_eeprom_locked(const uint8_t id, const bool locked) {
+    Result ScsProtocol::set_eeprom_locked(const uint8_t id, const bool locked) const {
         const std::array<uint8_t, 1> value{static_cast<uint8_t>(locked ? 1 : 0)};
         return write_registers(id, kRegisterEepromLock, value);
     }
 
-    Expected<uint16_t> ScsProtocol::read_word(const uint8_t id, const uint8_t address) {
+    Expected<uint16_t> ScsProtocol::read_word(const uint8_t id, const uint8_t address) const {
         std::array<uint8_t, 2> data{};
-        if (auto result = read_registers(id, address, data); !result) {
+        if (const auto result = read_registers(id, address, data); !result) {
             return Expected<uint16_t>::failure(result.error());
         }
         return Expected<uint16_t>(decode_word(data.data()));
     }
 
-    Expected<uint16_t> ScsProtocol::read_model(const uint8_t id) {
+    Expected<uint16_t> ScsProtocol::read_model(const uint8_t id) const {
         return read_word(id, kRegisterModel);
     }
 

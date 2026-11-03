@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <span>
 #include <string>
 
@@ -30,23 +29,23 @@ namespace feetech_servo_ros2_control {
         void close();
 
         /// @brief 串口是否已打开。
-        bool is_open() const {
+        [[nodiscard]] bool is_open() const {
             return fd_ >= 0;
         }
 
         /// @brief 写入全部字节。
         /// @param data 待发送数据。
         /// @return 写入失败或超时时返回错误信息。
-        Result write(std::span<const uint8_t> data);
+        Result write(std::span<const uint8_t> data) const;
 
         /// @brief 在超时时间内读满指定长度的数据。
         /// @param data 接收缓冲区。
         /// @param timeout 单次调用允许等待的最长时间。
         /// @return 超时、设备关闭或读取失败时返回错误信息。
-        Result read_exact(std::span<uint8_t> data, std::chrono::milliseconds timeout);
+        Result read_exact(std::span<uint8_t> data, std::chrono::milliseconds timeout) const;
 
         /// @brief 清空输入缓冲区，丢弃上一次超时后残留的字节。
-        void flush_input();
+        void flush_input() const;
 
     private:
         int fd_{-1};
