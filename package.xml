@@ -4,7 +4,7 @@
   <name>feetech_servo_ros2_control</name>
   <version>0.1.0</version>
   <description>ros2_control hardware interface for Feetech SCS series servos (SC215/SC225)</description>
-  <maintainer email="mdmbct@163.com">greenhand</maintainer>
+  <maintainer email="ohmdmbct@gmail.com">greenhand</maintainer>
   <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
